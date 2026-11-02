@@ -274,10 +274,23 @@ class RestaurantOrderController extends Controller
             ->get();
 
         $kitchenOrders = $orders->whereIn('status', ['open', 'in_kitchen']);
-        $dispatchedOrders = $orders->where('status', 'dispatched');
+        $dispatchedOrders = $orders->where('status', 'dispatched')->where('order_type', 'delivery');
         $deliveredOrders = $orders->where('status', 'delivered');
 
         return view('restaurant.orders.deliveries', compact('kitchenOrders', 'dispatchedOrders', 'deliveredOrders'));
+    }
+
+    /**
+     * Mark a takeout order as directly picked up by customer.
+     */
+    public function pickup(Request $request, RestaurantOrder $order, RestaurantOrderService $orderService): RedirectResponse
+    {
+        Gate::authorize('update', $order);
+        abort_if($order->business_id !== (int) session('current_business_id'), 403);
+
+        $orderService->pickupOrder($order);
+
+        return back()->with('success', "Pedido {$order->order_number} marcado como recogido exitosamente.");
     }
 
     /**

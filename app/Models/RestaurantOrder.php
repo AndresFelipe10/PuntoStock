@@ -34,6 +34,7 @@ class RestaurantOrder extends Model
         'notes',
         'closed_at',
         'precount_printed_at',
+        'delivered_at',
         'cancelled_by',
         'cancelled_at',
         'cancellation_reason',
@@ -48,6 +49,8 @@ class RestaurantOrder extends Model
         'delivery_fee_amount',
         'pending_items_subtotal',
         'pending_delivery_fee',
+        'client_display_name',
+        'waiter_name',
     ];
 
     protected function casts(): array
@@ -59,6 +62,7 @@ class RestaurantOrder extends Model
             'total' => 'float',
             'closed_at' => 'datetime',
             'precount_printed_at' => 'datetime',
+            'delivered_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];
     }
@@ -430,6 +434,58 @@ class RestaurantOrder extends Model
             'takeout' => 'Para Llevar / Recoger',
             default => ucfirst($this->order_type),
         };
+    }
+
+    /**
+     * Nombre del mesero o usuario que atendió la orden.
+     */
+    public function getWaiterNameAttribute(): string
+    {
+        if ($this->order_type === 'table' && filled($this->customer_name)) {
+            return $this->customer_name;
+        }
+
+        if ($this->relationLoaded('user') && $this->user) {
+            return $this->user->name;
+        }
+
+        return $this->user?->name ?? 'Usuario';
+    }
+
+    /**
+     * Nombre de presentación del cliente garantizando 'Consumidor Final' cuando no haya cliente asociado.
+     */
+    public function getClientDisplayNameAttribute(): string
+    {
+        if ($this->customer && filled($this->customer->name)) {
+            return $this->customer->name;
+        }
+
+        $waiterName = $this->waiter_name;
+        $waiterFirst = explode(' ', trim($waiterName))[0] ?? '';
+
+        $userName = $this->relationLoaded('user') && $this->user ? $this->user->name : ($this->user?->name ?? '');
+        $userFirst = explode(' ', trim($userName))[0] ?? '';
+
+        if (filled($this->customer_name)) {
+            $cName = trim(mb_strtolower($this->customer_name));
+            $wName = trim(mb_strtolower($waiterName));
+            $wFirst = trim(mb_strtolower($waiterFirst));
+            $uName = trim(mb_strtolower($userName));
+            $uFirst = trim(mb_strtolower($userFirst));
+
+            if (
+                $cName !== '' &&
+                $cName !== $wName &&
+                ($wFirst === '' || $cName !== $wFirst) &&
+                $cName !== $uName &&
+                ($uFirst === '' || $cName !== $uFirst)
+            ) {
+                return $this->customer_name;
+            }
+        }
+
+        return 'Consumidor Final';
     }
 
     /**

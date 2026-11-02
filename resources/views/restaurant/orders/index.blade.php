@@ -244,7 +244,9 @@
                                                 @endif
                                             </td>
                                             <td>
-                                                {{ $order->customer_name ?? ($order->customer->name ?? 'Consumidor Final') }}
+                                                <span class="text-truncate d-inline-block" style="max-width: 140px;" title="{{ $order->client_display_name }}">
+                                                    {{ $order->client_display_name }}
+                                                </span>
                                             </td>
                                             <td>
                                                 <small class="text-muted">{{ $order->user->name ?? 'Usuario' }}</small>
@@ -399,7 +401,9 @@
                                                 @endif
                                             </td>
                                             <td>
-                                                {{ $order->customer_name ?? ($order->customer->name ?? 'Consumidor Final') }}
+                                                <span class="text-truncate d-inline-block" style="max-width: 140px;" title="{{ $order->client_display_name }}">
+                                                    {{ $order->client_display_name }}
+                                                </span>
                                             </td>
                                             <td>
                                                 <small class="text-muted">{{ $order->user->name ?? 'Usuario' }}</small>

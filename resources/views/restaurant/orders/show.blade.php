@@ -5,11 +5,8 @@
 @section('content')
 @php
     $groupedProducts = $groupedProducts ?? $products->groupBy(fn($p) => $p->category?->name ?? 'General / Sin Categoría');
-    $waiterName = ($order->order_type === 'table' && !empty($order->customer_name))
-        ? $order->customer_name
-        : ($order->user->name ?? 'Usuario');
-    $clientName = $order->customer?->name
-        ?? ($order->order_type !== 'table' && !empty($order->customer_name) ? $order->customer_name : 'Consumidor Final');
+    $waiterName = $order->waiter_name;
+    $clientName = $order->client_display_name;
 @endphp
 <style>
     .btn-action-icon-danger {

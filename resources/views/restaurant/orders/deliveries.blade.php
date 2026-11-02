@@ -51,7 +51,7 @@
                                 </span>
                             </div>
 
-                            <h6 class="fw-bold text-dark mb-1">{{ $order->customer_name ?? 'Cliente sin nombre' }}</h6>
+                            <h6 class="fw-bold text-dark mb-1">{{ $order->client_display_name }}</h6>
                             @if($order->delivery_phone)
                                 <p class="text-muted small mb-1">
                                     <i class="bi bi-telephone me-1"></i>{{ $order->delivery_phone }}
@@ -72,13 +72,26 @@
                                 <a href="{{ route('restaurant.orders.dispatch-ticket', $order) }}" target="_blank" class="btn btn-sm btn-outline-secondary flex-grow-1" title="Imprimir Tirilla Despacho">
                                     <i class="bi bi-printer me-1"></i> Tirilla
                                 </a>
-                                <form action="{{ route('restaurant.orders.status.update', $order) }}" method="POST" class="d-inline flex-grow-1">
-                                    @csrf
-                                    <input type="hidden" name="status" value="dispatched">
-                                    <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold">
-                                        <i class="bi bi-send me-1"></i> Despachar
-                                    </button>
-                                </form>
+                                @if($order->order_type === 'delivery')
+                                    <form action="{{ route('restaurant.orders.status.update', $order) }}" method="POST" class="d-inline flex-grow-1">
+                                        @csrf
+                                        <input type="hidden" name="status" value="dispatched">
+                                        <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold">
+                                            <i class="bi bi-send me-1"></i> Despachar
+                                        </button>
+                                    </form>
+                                @else
+                                    <form action="{{ route('restaurant.deliveries.pickup', $order) }}" method="POST" class="d-inline flex-grow-1">
+                                        @csrf
+                                        <button type="submit" 
+                                                class="btn btn-sm btn-primary w-100 fw-bold d-inline-flex align-items-center justify-content-center px-3 btn-mark-picked-up"
+                                                data-order-id="{{ $order->id }}"
+                                                data-url="{{ route('restaurant.deliveries.pickup', $order) }}"
+                                                title="Marcar como recogido por el cliente">
+                                            <i class="bi bi-bag-check me-1"></i> Recogido
+                                        </button>
+                                    </form>
+                                @endif
                             </div>
                         </div>
                     @empty
@@ -109,7 +122,7 @@
                                 <span class="badge bg-primary">En Camino</span>
                             </div>
 
-                            <h6 class="fw-bold text-dark mb-1">{{ $order->customer_name }}</h6>
+                            <h6 class="fw-bold text-dark mb-1">{{ $order->client_display_name }}</h6>
                             @if($order->delivery_phone)
                                 <p class="text-muted small mb-1">
                                     <i class="bi bi-telephone me-1"></i>{{ $order->delivery_phone }}
@@ -172,7 +185,7 @@
                                 <span class="badge bg-success">Entregado</span>
                             </div>
 
-                            <h6 class="fw-bold text-dark mb-1">{{ $order->customer_name }}</h6>
+                            <h6 class="fw-bold text-dark mb-1">{{ $order->client_display_name }}</h6>
                             <p class="text-muted small mb-2">
                                 Total: <strong>${{ number_format($order->total, 2) }}</strong>
                             </p>

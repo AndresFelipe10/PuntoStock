@@ -129,6 +129,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/deliveries', [RestaurantOrderController::class, 'deliveries'])->name('orders.deliveries');
             Route::get('/orders-delivery/create', [RestaurantOrderController::class, 'createDelivery'])->name('orders.create-delivery');
             Route::post('/orders-delivery', [RestaurantOrderController::class, 'storeDelivery'])->name('orders.store-delivery');
+            Route::post('/deliveries/{order}/pickup', [RestaurantOrderController::class, 'pickup'])->name('deliveries.pickup');
             Route::post('/orders/{order}/status', [RestaurantOrderController::class, 'updateStatus'])->name('orders.status.update');
             Route::get('/orders/{order}/dispatch-ticket', [RestaurantOrderController::class, 'dispatchTicket'])->name('orders.dispatch-ticket');
         });

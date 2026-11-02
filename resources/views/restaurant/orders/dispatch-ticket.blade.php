@@ -330,7 +330,7 @@
 
             <div class="delivery-field">
                 <span class="delivery-label">Cliente:</span>
-                <span class="delivery-val">{{ $order->customer_name ?? ($order->customer->name ?? 'Consumidor Final') }}</span>
+                <span class="delivery-val">{{ $order->client_display_name }}</span>
             </div>
 
             <div class="delivery-field">
@@ -383,7 +383,7 @@
         {{-- Liquidación Contraentrega --}}
         <div class="totals-section">
             <div class="total-line">
-                <span>Subtotal Comida:</span>
+                <span>Subtotal Consumo:</span>
                 <strong>${{ number_format($order->itemsSubtotal(), 2) }}</strong>
             </div>
 
@@ -395,7 +395,13 @@
             @endif
 
             <div class="cod-box">
-                <div class="cod-label">TOTAL A COBRAR EN DESTINO:</div>
+                @if($order->isClosedOrBilled() || $order->pendingBalance() <= 0)
+                    <div class="cod-label">TOTAL PEDIDO:</div>
+                @elseif($order->order_type === 'delivery')
+                    <div class="cod-label">TOTAL A COBRAR EN DESTINO:</div>
+                @else
+                    <div class="cod-label">TOTAL A COBRAR:</div>
+                @endif
                 <div class="cod-amount">${{ number_format($order->totalAmount(), 2) }}</div>
             </div>
         </div>

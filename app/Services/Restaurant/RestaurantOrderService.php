@@ -289,7 +289,43 @@ class RestaurantOrderService
                 }
             }
 
-            $lockedOrder->update(['status' => $newStatus]);
+            $updateData = ['status' => $newStatus];
+            if ($newStatus === 'delivered' && empty($lockedOrder->delivered_at)) {
+                $updateData['delivered_at'] = now();
+            }
+
+            $lockedOrder->update($updateData);
+
+            return $lockedOrder->fresh();
+        });
+    }
+
+    /**
+     * Mark a takeout order as directly picked up by customer (status: delivered).
+     */
+    public function pickupOrder(RestaurantOrder $order): RestaurantOrder
+    {
+        return DB::transaction(function () use ($order) {
+            $lockedOrder = RestaurantOrder::where('business_id', $order->business_id)
+                ->lockForUpdate()
+                ->findOrFail($order->id);
+
+            if (! in_array($lockedOrder->order_type, ['takeout', 'takeaway'], true)) {
+                throw ValidationException::withMessages([
+                    'order' => 'Solo los pedidos para llevar pueden marcarse como recogidos.',
+                ]);
+            }
+
+            if (! $lockedOrder->canBeModified()) {
+                throw ValidationException::withMessages([
+                    'order' => 'No se puede cambiar el estado de un pedido que ya fue facturado, cerrado o anulado.',
+                ]);
+            }
+
+            $lockedOrder->update([
+                'status' => 'delivered',
+                'delivered_at' => now(),
+            ]);
 
             return $lockedOrder->fresh();
         });
