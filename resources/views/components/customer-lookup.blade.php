@@ -11,6 +11,7 @@
     'badgeNameId' => 'selected_customer_name_label',
     'placeholder' => 'Escribe al menos 3 caracteres para buscar clientes registrados...',
     'selectPlaceholder' => '-- O selecciona directamente de la lista de clientes --',
+    'withQuickButton' => true,
 ])
 
 @php
@@ -47,8 +48,8 @@
     </div>
 
     <!-- Selector Desplegable Complementario -->
-    <div class="mt-2">
-        <select id="{{ $selectId }}" class="form-select border-secondary border-opacity-25 rounded-3">
+    <div class="mt-2 {{ $withQuickButton ? 'd-flex align-items-stretch gap-2' : '' }}">
+        <select id="{{ $selectId }}" class="form-select border-secondary border-opacity-25 rounded-3 {{ $withQuickButton ? 'flex-grow-1' : '' }}">
             <option value="">{{ $selectPlaceholder }}</option>
             @foreach($customers ?? [] as $customer)
                 <option value="{{ $customer->id }}"
@@ -61,6 +62,18 @@
                 </option>
             @endforeach
         </select>
+        @if($withQuickButton)
+            <button type="button"
+                    class="btn btn-outline-primary bg-white text-primary d-inline-flex align-items-center justify-content-center px-3 flex-shrink-0 btn-open-quick-customer"
+                    id="btnOpenQuickCustomer"
+                    data-bs-toggle="modal"
+                    data-bs-target="#quickCustomerModal"
+                    title="Crear Cliente Rápido"
+                    aria-label="Crear Cliente Rápido"
+                    style="min-width: 44px; min-height: 42px; border-radius: 0.5rem;">
+                <i class="bi bi-person-plus fs-5" style="line-height: 1;"></i>
+            </button>
+        @endif
     </div>
 
     <div id="{{ $badgeId }}" class="mt-2 {{ $selectedCustomer ? '' : 'd-none' }}">

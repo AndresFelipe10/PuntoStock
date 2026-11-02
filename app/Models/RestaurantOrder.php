@@ -431,4 +431,29 @@ class RestaurantOrder extends Model
             default => ucfirst($this->order_type),
         };
     }
+
+    /**
+     * Scope para filtrar por estado simétrico al badge de la columna Estado en la vista.
+     */
+    public function scopeByStatus($query, string $status)
+    {
+        return match ($status) {
+            'open' => $query->whereNotIn('status', ['billed', 'closed', 'paid', 'cancelled'])
+                            ->whereNull('precount_printed_at')
+                            ->where('status', '!=', 'precount')
+                            ->where('status', '!=', 'in_kitchen'),
+            'in_kitchen' => $query->whereNotIn('status', ['billed', 'closed', 'paid', 'cancelled'])
+                                  ->whereNull('precount_printed_at')
+                                  ->where('status', '!=', 'precount')
+                                  ->where('status', 'in_kitchen'),
+            'precount' => $query->whereNotIn('status', ['billed', 'closed', 'paid', 'cancelled'])
+                                ->where(function ($q) {
+                                    $q->whereNotNull('precount_printed_at')
+                                      ->orWhere('status', 'precount');
+                                }),
+            'billed', 'closed', 'paid' => $query->whereIn('status', ['billed', 'closed', 'paid']),
+            'cancelled' => $query->where('status', 'cancelled'),
+            default => $query->where('status', $status),
+        };
+    }
 }

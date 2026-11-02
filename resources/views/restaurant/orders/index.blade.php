@@ -4,8 +4,14 @@
 
 @section('content')
 @php
-    $hasPastFilters = request()->has('past_page') || request()->has('search') || request()->has('status') || request()->has('date_from') || request()->has('date_to');
-    $activeTab = $hasPastFilters ? 'past' : 'today';
+    $hasPastFilters = request()->has('past_page') 
+        || request()->has('search') 
+        || request()->has('status') 
+        || request()->has('date_from') 
+        || request()->has('date_to')
+        || request('tab') === 'history'
+        || request('tab') === 'past';
+    $activeTab = $hasPastFilters ? 'past' : (request('tab') === 'today' ? 'today' : 'today');
     $todayFormatted = \Carbon\Carbon::parse($todayDate)->format('d/m/Y');
 
     $statusBadges = [
@@ -243,17 +249,7 @@
                                                 <small class="text-muted">{{ $order->user->name ?? 'Usuario' }}</small>
                                             </td>
                                             <td>
-                                                @if($order->status === 'billed' || $order->status === 'closed')
-                                                    <span class="badge bg-success px-2 py-1">Cerrada / Pagada</span>
-                                                @elseif($order->status === 'cancelled')
-                                                    <span class="badge bg-danger px-2 py-1">Anulada</span>
-                                                @elseif($order->precount_printed_at || $order->hasPartialPayments())
-                                                    <span class="badge bg-warning text-dark px-2 py-1">En Cobro / Pre-cuenta emitida</span>
-                                                @elseif($order->status === 'in_kitchen')
-                                                    <span class="badge bg-warning text-dark px-2 py-1">En Cocina</span>
-                                                @else
-                                                    <span class="badge bg-primary px-2 py-1">Abierta / En preparación</span>
-                                                @endif
+                                                {!! $order->status_badge !!}
                                             </td>
                                             <td class="fw-bold">
                                                 ${{ number_format($order->total, 2) }}
@@ -297,6 +293,7 @@
             <div class="card border-0 shadow-sm rounded-4 mb-3 bg-light">
                 <div class="card-body p-3">
                     <form method="GET" action="{{ route('restaurant.orders.index') }}" class="row g-2 align-items-end">
+                        <input type="hidden" name="tab" value="history">
                         <div class="col-12 col-md-4">
                             <label class="form-label small fw-semibold text-secondary mb-1">Buscar comanda, mesa o cliente</label>
                             <input type="text" 
@@ -312,8 +309,8 @@
                                 <option value="">Todos los estados</option>
                                 <option value="open" {{ request('status') === 'open' ? 'selected' : '' }}>Abierta</option>
                                 <option value="in_kitchen" {{ request('status') === 'in_kitchen' ? 'selected' : '' }}>En Cocina</option>
-                                <option value="billed" {{ request('status') === 'billed' ? 'selected' : '' }}>En Cobro</option>
-                                <option value="closed" {{ request('status') === 'closed' ? 'selected' : '' }}>Cerrada</option>
+                                <option value="precount" {{ request('status') === 'precount' ? 'selected' : '' }}>En Cobro</option>
+                                <option value="billed" {{ in_array(request('status'), ['billed', 'closed', 'paid']) ? 'selected' : '' }}>Cerrada / Pagada</option>
                                 <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Anulada</option>
                             </select>
                         </div>
@@ -333,7 +330,7 @@
                                 <i class="bi bi-filter me-1"></i> Filtrar
                             </button>
                             @if($hasPastFilters)
-                                <a href="{{ route('restaurant.orders.index') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">
+                                <a href="{{ route('restaurant.orders.index', ['tab' => 'history']) }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">
                                     <i class="bi bi-x-lg"></i>
                                 </a>
                             @endif
@@ -397,17 +394,7 @@
                                                 <small class="text-muted">{{ $order->user->name ?? 'Usuario' }}</small>
                                             </td>
                                             <td>
-                                                @if($order->status === 'billed' || $order->status === 'closed')
-                                                    <span class="badge bg-success px-2 py-1">Cerrada / Pagada</span>
-                                                @elseif($order->status === 'cancelled')
-                                                    <span class="badge bg-danger px-2 py-1">Anulada</span>
-                                                @elseif($order->precount_printed_at || $order->hasPartialPayments())
-                                                    <span class="badge bg-warning text-dark px-2 py-1">En Cobro / Pre-cuenta emitida</span>
-                                                @elseif($order->status === 'in_kitchen')
-                                                    <span class="badge bg-warning text-dark px-2 py-1">En Cocina</span>
-                                                @else
-                                                    <span class="badge bg-primary px-2 py-1">Abierta / En preparación</span>
-                                                @endif
+                                                {!! $order->status_badge !!}
                                             </td>
                                             <td class="fw-bold">
                                                 ${{ number_format($order->total, 2) }}

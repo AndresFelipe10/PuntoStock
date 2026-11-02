@@ -104,6 +104,7 @@ class CustomerController extends Controller
                 'name' => $customer->name,
                 'document' => $customer->document,
                 'phone' => $customer->phone,
+                'address' => $customer->address,
                 'message' => "Cliente '{$customer->name}' registrado exitosamente.",
             ], 201);
         }

@@ -60,7 +60,7 @@ class RestaurantOrderController extends Controller
         }
 
         if ($status = $request->input('status')) {
-            $pastQuery->where('status', $status);
+            $pastQuery->byStatus($status);
         }
 
         if ($dateFrom = $request->input('date_from')) {

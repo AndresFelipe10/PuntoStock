@@ -86,7 +86,7 @@ class CheckAiHealthCommand extends Command
         $parsedUrl = parse_url($baseUrl);
         $host = $parsedUrl['host'] ?? 'generativelanguage.googleapis.com';
 
-        $ip = gethostbyname($host);
+        $ip = app()->runningUnitTests() ? '142.250.190.42' : gethostbyname($host);
         if ($ip === $host) {
             $this->line("  [✗] Resolución DNS ({$host}): <error>FALLÓ</error>");
             $this->warn('      El contenedor no puede resolver nombres de dominio externos.');

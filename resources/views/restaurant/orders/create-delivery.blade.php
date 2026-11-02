@@ -215,6 +215,57 @@
     </div>
 </template>
 
+{{-- Modal Estandarizado de Creación Rápida de Cliente --}}
+<div class="modal fade" id="quickCustomerModal" tabindex="-1" aria-labelledby="quickCustomerModalLabel" aria-hidden="true" style="z-index: 1065;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold" id="quickCustomerModalLabel">
+                    <i class="bi bi-person-plus text-primary me-2"></i>Crear Cliente Rápido
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="quickCustomerErrors" class="alert alert-danger d-none small mb-3"></div>
+
+                <div class="mb-3">
+                    <label for="quick_customer_document" class="form-label small fw-semibold text-muted">Cédula o NIT <span class="text-danger">*</span></label>
+                    <input type="text" id="quick_customer_document" class="form-control font-monospace" placeholder="Ej: 1144001234 o 900123456-1" minlength="5" maxlength="15" inputmode="numeric" autocomplete="off" required>
+                    <div class="form-text small">Solo dígitos (5–15) y guión opcional con dígito de verificación.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="quick_customer_name" class="form-label small fw-semibold text-muted">Nombre o Razón Social <span class="text-danger">*</span></label>
+                    <input type="text" id="quick_customer_name" class="form-control" placeholder="Nombre completo o razón social" minlength="2" maxlength="100" autocomplete="off" required>
+                    <div class="form-text small">Debe contener letras (no se permiten únicamente números).</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="quick_customer_phone" class="form-label small fw-semibold text-muted">Teléfono / WhatsApp <span class="text-muted">(opcional)</span></label>
+                    <input type="tel" id="quick_customer_phone" class="form-control font-monospace" placeholder="Ej: 3151234567" minlength="7" maxlength="15" inputmode="tel" autocomplete="off">
+                    <div class="form-text small">Solo números y símbolos telefónicos (+, -).</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="quick_customer_address" class="form-label small fw-semibold text-muted">Dirección de Entrega <span class="text-muted">(opcional)</span></label>
+                    <input type="text" id="quick_customer_address" class="form-control" placeholder="Ej: Cra 100 # 15-20, Apto 302" minlength="5" maxlength="150" autocomplete="off">
+                </div>
+
+                <div class="mb-3">
+                    <label for="quick_customer_email" class="form-label small fw-semibold text-muted">Correo Electrónico <span class="text-muted">(opcional)</span></label>
+                    <input type="email" id="quick_customer_email" class="form-control" placeholder="cliente@ejemplo.com">
+                </div>
+            </div>
+            <div class="modal-footer border-top bg-light">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="btn_save_quick_customer" class="btn btn-primary rounded-pill px-4 fw-semibold">
+                    <i class="bi bi-box-arrow-in-down me-1"></i> Guardar Cliente
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const typeDelivery = document.getElementById('type_delivery');
@@ -770,6 +821,149 @@ document.addEventListener('DOMContentLoaded', function () {
             if (btnClearCustomer) btnClearCustomer.classList.remove('d-none');
             if (customerSearchInput && !customerSearchInput.value) customerSearchInput.value = opt.dataset.name || '';
         }
+    }
+
+    // Manejo de Modal de Creación Rápida de Cliente
+    const quickCustomerModalEl = document.getElementById('quickCustomerModal');
+    const btnSaveQuickCustomer = document.getElementById('btn_save_quick_customer');
+    const quickCustomerErrors = document.getElementById('quickCustomerErrors');
+
+    if (btnSaveQuickCustomer && quickCustomerModalEl) {
+        btnSaveQuickCustomer.addEventListener('click', function () {
+            if (quickCustomerErrors) {
+                quickCustomerErrors.classList.add('d-none');
+                quickCustomerErrors.innerHTML = '';
+            }
+
+            const docInput = document.getElementById('quick_customer_document');
+            const nameInput = document.getElementById('quick_customer_name');
+            const phoneInput = document.getElementById('quick_customer_phone');
+            const addressInput = document.getElementById('quick_customer_address');
+            const emailInput = document.getElementById('quick_customer_email');
+
+            const docVal = (docInput ? docInput.value : '').trim();
+            const nameVal = (nameInput ? nameInput.value : '').trim();
+            const phoneVal = (phoneInput ? phoneInput.value : '').trim();
+            const addressVal = (addressInput ? addressInput.value : '').trim();
+            const emailVal = (emailInput ? emailInput.value : '').trim();
+
+            btnSaveQuickCustomer.disabled = true;
+            btnSaveQuickCustomer.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Guardando...';
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                || document.querySelector('input[name="_token"]')?.value
+                || '{{ csrf_token() }}';
+
+            fetch('{{ route("customers.store") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    document: docVal,
+                    name: nameVal,
+                    phone: phoneVal || null,
+                    address: addressVal || null,
+                    email: emailVal || null,
+                    is_active: true
+                })
+            })
+            .then(async function (response) {
+                const data = await response.json();
+                btnSaveQuickCustomer.disabled = false;
+                btnSaveQuickCustomer.innerHTML = '<i class="bi bi-box-arrow-in-down me-1"></i> Guardar Cliente';
+
+                if (!response.ok) {
+                    if (quickCustomerErrors) {
+                        const ul = document.createElement('ul');
+                        ul.className = 'mb-0 ps-3';
+                        if (data.errors) {
+                            Object.values(data.errors).forEach(function(errArr) {
+                                errArr.forEach(function(errText) {
+                                    const li = document.createElement('li');
+                                    li.textContent = errText;
+                                    ul.appendChild(li);
+                                });
+                            });
+                        } else if (data.message) {
+                            const li = document.createElement('li');
+                            li.textContent = data.message;
+                            ul.appendChild(li);
+                        }
+                        quickCustomerErrors.appendChild(ul);
+                        quickCustomerErrors.classList.remove('d-none');
+                    }
+                    return;
+                }
+
+                // 1. Agregar nueva opción al select complementario si no existe y seleccionarla
+                if (customerSelectDropdown) {
+                    let opt = customerSelectDropdown.querySelector('option[value="' + data.id + '"]');
+                    if (!opt) {
+                        opt = document.createElement('option');
+                        opt.value = data.id;
+                        opt.dataset.name = data.name;
+                        opt.dataset.document = data.document || '';
+                        opt.dataset.phone = data.phone || '';
+                        opt.dataset.address = data.address || addressVal || '';
+                        opt.textContent = data.name + (data.phone ? ' · ' + data.phone : '') + (data.document ? ' (' + data.document + ')' : '');
+                        customerSelectDropdown.appendChild(opt);
+                    }
+                    customerSelectDropdown.value = data.id;
+                }
+
+                // 2. Autocompletar datos del pedido
+                if (customerIdInput) customerIdInput.value = data.id;
+                if (customerNameInput) customerNameInput.value = data.name;
+                if (deliveryPhoneInput && (data.phone || phoneVal)) {
+                    deliveryPhoneInput.value = data.phone || phoneVal;
+                }
+                if (deliveryAddress && (data.address || addressVal) && typeDelivery.checked) {
+                    deliveryAddress.value = data.address || addressVal;
+                }
+
+                // 3. Sincronizar badge y buscador
+                if (customerSearchInput) customerSearchInput.value = data.name;
+                if (selectedCustomerNameLabel) selectedCustomerNameLabel.textContent = data.name;
+                if (selectedCustomerBadge) selectedCustomerBadge.classList.remove('d-none');
+                if (btnClearCustomer) btnClearCustomer.classList.remove('d-none');
+                if (customerSearchResults) customerSearchResults.classList.add('d-none');
+
+                // 4. Limpiar formulario modal
+                if (docInput) docInput.value = '';
+                if (nameInput) nameInput.value = '';
+                if (phoneInput) phoneInput.value = '';
+                if (addressInput) addressInput.value = '';
+                if (emailInput) emailInput.value = '';
+
+                // 5. Cerrar modal
+                const modalInstance = bootstrap.Modal.getInstance(quickCustomerModalEl);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+
+                // 6. Foco inteligente al siguiente campo lógico
+                if (deliveryAddress && !deliveryAddress.value && typeDelivery.checked) {
+                    deliveryAddress.focus();
+                } else if (deliveryPhoneInput && !deliveryPhoneInput.value) {
+                    deliveryPhoneInput.focus();
+                }
+            })
+            .catch(function () {
+                btnSaveQuickCustomer.disabled = false;
+                btnSaveQuickCustomer.innerHTML = '<i class="bi bi-box-arrow-in-down me-1"></i> Guardar Cliente';
+                if (quickCustomerErrors) {
+                    const p = document.createElement('p');
+                    p.className = 'mb-0';
+                    p.textContent = 'Ocurrió un error al registrar el cliente. Intente nuevamente.';
+                    quickCustomerErrors.appendChild(p);
+                    quickCustomerErrors.classList.remove('d-none');
+                }
+            });
+        });
     }
 });
 </script>

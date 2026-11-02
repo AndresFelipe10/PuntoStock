@@ -18,6 +18,10 @@ class CheckAiHealthCommandTest extends TestCase
     {
         config(['ai.enabled' => false]);
 
+        Http::fake([
+            'https://generativelanguage.googleapis.com*' => Http::response([], 200),
+        ]);
+
         $this->artisan('ai:check', ['--skip-api' => true])
             ->expectsOutputToContain('Módulo deshabilitado: AI_MODULE_ENABLED=false')
             ->assertSuccessful();
@@ -30,6 +34,10 @@ class CheckAiHealthCommandTest extends TestCase
             'ai.providers.gemini.api_key' => '',
         ]);
 
+        Http::fake([
+            'https://generativelanguage.googleapis.com*' => Http::response([], 200),
+        ]);
+
         $this->artisan('ai:check', ['--skip-api' => true])
             ->expectsOutputToContain('API Key: NO CONFIGURADA')
             ->assertFailed();
@@ -40,6 +48,10 @@ class CheckAiHealthCommandTest extends TestCase
         config([
             'ai.enabled' => true,
             'ai.providers.gemini.api_key' => 'tu_api_key_de_gemini_aqui',
+        ]);
+
+        Http::fake([
+            'https://generativelanguage.googleapis.com*' => Http::response([], 200),
         ]);
 
         $this->artisan('ai:check', ['--skip-api' => true])
@@ -73,7 +85,7 @@ class CheckAiHealthCommandTest extends TestCase
         ]);
 
         Http::fake([
-            'https://generativelanguage.googleapis.com*' => Http::response([
+            'https://generativelanguage.googleapis.com/v1beta/models*' => Http::response([
                 'candidates' => [
                     [
                         'content' => [
@@ -89,6 +101,7 @@ class CheckAiHealthCommandTest extends TestCase
                     ],
                 ],
             ], 200),
+            'https://generativelanguage.googleapis.com*' => Http::response([], 200),
         ]);
 
         $this->artisan('ai:check', ['--query' => '¿Cuántos clientes tenemos?'])
@@ -106,13 +119,14 @@ class CheckAiHealthCommandTest extends TestCase
         ]);
 
         Http::fake([
-            'https://generativelanguage.googleapis.com*' => Http::response([
+            'https://generativelanguage.googleapis.com/v1beta/models*' => Http::response([
                 'error' => [
                     'code' => 400,
                     'message' => 'API_KEY_INVALID: The provided API key is expired or invalid.',
                     'status' => 'INVALID_ARGUMENT',
                 ],
             ], 400),
+            'https://generativelanguage.googleapis.com*' => Http::response([], 200),
         ]);
 
         $this->artisan('ai:check', ['--query' => '¿Ventas de hoy?'])
@@ -121,4 +135,3 @@ class CheckAiHealthCommandTest extends TestCase
             ->assertFailed();
     }
 }
-
