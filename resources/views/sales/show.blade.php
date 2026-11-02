@@ -5,9 +5,15 @@
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <div class="d-flex align-items-center gap-3">
-        <a href="{{ route('sales.index') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
-            <i class="bi bi-arrow-left me-1"></i> Volver
-        </a>
+        @if($sale->restaurant_order_id)
+            <a href="{{ route('restaurant.orders.show', $sale->restaurant_order_id) }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3" title="Volver a la comanda de restaurante">
+                <i class="bi bi-arrow-left me-1"></i> Volver a Comanda
+            </a>
+        @else
+            <a href="{{ route('sales.index') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                <i class="bi bi-arrow-left me-1"></i> Volver
+            </a>
+        @endif
         <div>
             <h3 class="fw-bold mb-0">Comprobante de Venta</h3>
             <span class="font-monospace text-primary fw-bold">{{ $sale->invoice_number }}</span>

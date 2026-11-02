@@ -456,4 +456,64 @@ class RestaurantOrder extends Model
             default => $query->where('status', $status),
         };
     }
+
+    /**
+     * Scope para filtrar por tipo de pedido mapeando valores canónicos y alias.
+     */
+    public function scopeByOrderType($query, string $orderType)
+    {
+        $canonical = match (strtolower(trim($orderType))) {
+            'dine_in', 'table', 'salon', 'mesa' => 'table',
+            'delivery', 'domicilio', 'despacho' => 'delivery',
+            'takeaway', 'takeout', 'pickup', 'to_go', 'llevar', 'recoger' => 'takeout',
+            default => $orderType,
+        };
+
+        return $query->where('order_type', $canonical);
+    }
+
+    /**
+     * Scope para búsqueda textual amplia de comandas (número, cliente, mesa o tipo de comanda en español).
+     */
+    public function scopeSearchOrders($query, string $search)
+    {
+        $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search);
+
+        // Normalización sin acentos y en minúsculas
+        $normalized = mb_strtolower(trim($search), 'UTF-8');
+        $unaccented = strtr($normalized, [
+            'á'=>'a', 'é'=>'e', 'í'=>'i', 'ó'=>'o', 'ú'=>'u',
+            'Á'=>'a', 'É'=>'e', 'Í'=>'i', 'Ó'=>'o', 'Ú'=>'u',
+            'ñ'=>'n', 'Ñ'=>'n', 'ü'=>'u', 'Ü'=>'u',
+        ]);
+
+        $matchedTypes = [];
+
+        if (str_contains($unaccented, 'domicilio') || str_contains($unaccented, 'despacho') || str_contains($unaccented, 'delivery')) {
+            $matchedTypes[] = 'delivery';
+        }
+
+        if (str_contains($unaccented, 'para llevar') || str_contains($unaccented, 'llevar') || str_contains($unaccented, 'recoger') || str_contains($unaccented, 'takeout') || str_contains($unaccented, 'takeaway') || str_contains($unaccented, 'pickup') || str_contains($unaccented, 'to_go')) {
+            $matchedTypes[] = 'takeout';
+        }
+
+        if (str_contains($unaccented, 'salon') || str_contains($unaccented, 'mesa') || str_contains($unaccented, 'table') || str_contains($unaccented, 'dine_in')) {
+            $matchedTypes[] = 'table';
+        }
+
+        return $query->where(function ($q) use ($escaped, $matchedTypes) {
+            $q->whereRaw("order_number LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+              ->orWhereRaw("customer_name LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+              ->orWhereHas('customer', function ($cq) use ($escaped) {
+                  $cq->whereRaw("name LIKE ? ESCAPE '!'", ["%{$escaped}%"]);
+              })
+              ->orWhereHas('table', function ($tq) use ($escaped) {
+                  $tq->whereRaw("name LIKE ? ESCAPE '!'", ["%{$escaped}%"]);
+              });
+
+            if (! empty($matchedTypes)) {
+                $q->orWhereIn('order_type', array_unique($matchedTypes));
+            }
+        });
+    }
 }

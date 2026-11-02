@@ -7,6 +7,7 @@
     $hasPastFilters = request()->has('past_page') 
         || request()->has('search') 
         || request()->has('status') 
+        || request()->has('order_type')
         || request()->has('date_from') 
         || request()->has('date_to')
         || request('tab') === 'history'
@@ -294,13 +295,23 @@
                 <div class="card-body p-3">
                     <form method="GET" action="{{ route('restaurant.orders.index') }}" class="row g-2 align-items-end">
                         <input type="hidden" name="tab" value="history">
-                        <div class="col-12 col-md-4">
-                            <label class="form-label small fw-semibold text-secondary mb-1">Buscar comanda, mesa o cliente</label>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Buscar comanda, mesa, tipo o cliente</label>
                             <input type="text" 
                                    name="search" 
                                    class="form-control form-control-sm" 
-                                   placeholder="Ej: ORD-0012, Mesa 3, María..." 
+                                   placeholder="Ej: ORD-0012, Mesa 3, Domicilio, Para llevar, María..." 
                                    value="{{ request('search') }}">
+                        </div>
+
+                        <div class="col-6 col-md-2">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Tipo</label>
+                            <select name="order_type" class="form-select form-select-sm">
+                                <option value="">Todos los tipos</option>
+                                <option value="dine_in" {{ in_array(request('order_type'), ['dine_in', 'table']) ? 'selected' : '' }}>Salón / Mesa</option>
+                                <option value="delivery" {{ request('order_type') === 'delivery' ? 'selected' : '' }}>Domicilio</option>
+                                <option value="takeaway" {{ in_array(request('order_type'), ['takeaway', 'takeout']) ? 'selected' : '' }}>Para Llevar</option>
+                            </select>
                         </div>
 
                         <div class="col-6 col-md-2">
@@ -325,9 +336,9 @@
                             <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
                         </div>
 
-                        <div class="col-6 col-md-2 d-flex gap-1">
-                            <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
-                                <i class="bi bi-filter me-1"></i> Filtrar
+                        <div class="col-12 col-md-1 d-flex gap-1">
+                            <button type="submit" class="btn btn-primary btn-sm flex-grow-1" title="Filtrar">
+                                <i class="bi bi-filter"></i>
                             </button>
                             @if($hasPastFilters)
                                 <a href="{{ route('restaurant.orders.index', ['tab' => 'history']) }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">

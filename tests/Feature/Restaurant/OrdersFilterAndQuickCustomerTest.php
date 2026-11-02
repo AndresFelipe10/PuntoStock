@@ -307,4 +307,129 @@ class OrdersFilterAndQuickCustomerTest extends TestCase
         $response->assertSee('id="past-orders-pane" role="tabpanel" aria-labelledby="history-orders-tab" tabindex="0"', false);
         $response->assertSee('class="tab-pane fade show active" id="past-orders-pane"', false);
     }
+
+    /**
+     * Test 6: Búsqueda textual amplia y filtrado por tipo de pedido (Salón, Domicilio y Para Llevar).
+     */
+    public function test_orders_search_and_filter_by_order_type_salon_delivery_takeaway(): void
+    {
+        $pastDate = Carbon::now('America/Bogota')->subDays(2)->setTime(10, 0, 0);
+
+        $table2 = RestaurantTable::create([
+            'business_id' => $this->restaurant->id,
+            'name' => 'Mesa 2',
+            'capacity' => 2,
+            'status' => 'available',
+        ]);
+
+        // 1. Orden de salón en Mesa 2
+        $tableOrder = RestaurantOrder::create([
+            'business_id' => $this->restaurant->id,
+            'table_id' => $table2->id,
+            'user_id' => $this->employee->id,
+            'order_number' => 'ORD-TYPE-SALON',
+            'order_type' => 'table',
+            'status' => 'open',
+            'subtotal' => 30000,
+            'total' => 30000,
+        ]);
+        \Illuminate\Support\Facades\DB::table('restaurant_orders')
+            ->where('id', $tableOrder->id)
+            ->update(['created_at' => $pastDate, 'updated_at' => $pastDate]);
+
+        // 2. Orden de domicilio
+        $deliveryOrder = RestaurantOrder::create([
+            'business_id' => $this->restaurant->id,
+            'user_id' => $this->employee->id,
+            'order_number' => 'ORD-TYPE-DELIVERY',
+            'order_type' => 'delivery',
+            'status' => 'open',
+            'customer_name' => 'Cliente Domicilio',
+            'delivery_phone' => '3111111111',
+            'delivery_address' => 'Avenida 6N # 20-30',
+            'subtotal' => 45000,
+            'total' => 48000,
+        ]);
+        \Illuminate\Support\Facades\DB::table('restaurant_orders')
+            ->where('id', $deliveryOrder->id)
+            ->update(['created_at' => $pastDate, 'updated_at' => $pastDate]);
+
+        // 3. Orden para llevar
+        $takeoutOrder = RestaurantOrder::create([
+            'business_id' => $this->restaurant->id,
+            'user_id' => $this->employee->id,
+            'order_number' => 'ORD-TYPE-TAKEOUT',
+            'order_type' => 'takeout',
+            'status' => 'open',
+            'customer_name' => 'Cliente Para Llevar',
+            'subtotal' => 25000,
+            'total' => 25000,
+        ]);
+        \Illuminate\Support\Facades\DB::table('restaurant_orders')
+            ->where('id', $takeoutOrder->id)
+            ->update(['created_at' => $pastDate, 'updated_at' => $pastDate]);
+
+        // A. Búsqueda por "Domicilio"
+        $respSearchDelivery = $this->actingAs($this->admin)
+            ->withSession(['current_business_id' => $this->restaurant->id])
+            ->get(route('restaurant.orders.index', ['search' => 'Domicilio']));
+        $ids = $respSearchDelivery->viewData('pastOrders')->pluck('id')->all();
+        $this->assertContains($deliveryOrder->id, $ids);
+        $this->assertNotContains($tableOrder->id, $ids);
+        $this->assertNotContains($takeoutOrder->id, $ids);
+
+        // B. Filtro por order_type = 'delivery'
+        $respFilterDelivery = $this->actingAs($this->admin)
+            ->withSession(['current_business_id' => $this->restaurant->id])
+            ->get(route('restaurant.orders.index', ['order_type' => 'delivery']));
+        $ids = $respFilterDelivery->viewData('pastOrders')->pluck('id')->all();
+        $this->assertContains($deliveryOrder->id, $ids);
+        $this->assertNotContains($tableOrder->id, $ids);
+        $this->assertNotContains($takeoutOrder->id, $ids);
+
+        // C. Búsqueda por "Para llevar"
+        $respSearchTakeout = $this->actingAs($this->admin)
+            ->withSession(['current_business_id' => $this->restaurant->id])
+            ->get(route('restaurant.orders.index', ['search' => 'Para llevar']));
+        $ids = $respSearchTakeout->viewData('pastOrders')->pluck('id')->all();
+        $this->assertContains($takeoutOrder->id, $ids);
+        $this->assertNotContains($tableOrder->id, $ids);
+        $this->assertNotContains($deliveryOrder->id, $ids);
+
+        // D. Filtro por order_type = 'takeaway'
+        $respFilterTakeout = $this->actingAs($this->admin)
+            ->withSession(['current_business_id' => $this->restaurant->id])
+            ->get(route('restaurant.orders.index', ['order_type' => 'takeaway']));
+        $ids = $respFilterTakeout->viewData('pastOrders')->pluck('id')->all();
+        $this->assertContains($takeoutOrder->id, $ids);
+        $this->assertNotContains($tableOrder->id, $ids);
+        $this->assertNotContains($deliveryOrder->id, $ids);
+
+        // E. Búsqueda por "Salón"
+        $respSearchSalon = $this->actingAs($this->admin)
+            ->withSession(['current_business_id' => $this->restaurant->id])
+            ->get(route('restaurant.orders.index', ['search' => 'Salón']));
+        $ids = $respSearchSalon->viewData('pastOrders')->pluck('id')->all();
+        $this->assertContains($tableOrder->id, $ids);
+        $this->assertNotContains($deliveryOrder->id, $ids);
+        $this->assertNotContains($takeoutOrder->id, $ids);
+
+        // F. Búsqueda por "Mesa 2"
+        $respSearchMesa = $this->actingAs($this->admin)
+            ->withSession(['current_business_id' => $this->restaurant->id])
+            ->get(route('restaurant.orders.index', ['search' => 'Mesa 2']));
+        $ids = $respSearchMesa->viewData('pastOrders')->pluck('id')->all();
+        $this->assertContains($tableOrder->id, $ids);
+        $this->assertNotContains($deliveryOrder->id, $ids);
+        $this->assertNotContains($takeoutOrder->id, $ids);
+
+        // G. Filtro por order_type = 'dine_in'
+        $respFilterDineIn = $this->actingAs($this->admin)
+            ->withSession(['current_business_id' => $this->restaurant->id])
+            ->get(route('restaurant.orders.index', ['order_type' => 'dine_in']));
+        $ids = $respFilterDineIn->viewData('pastOrders')->pluck('id')->all();
+        $this->assertContains($tableOrder->id, $ids);
+        $this->assertNotContains($deliveryOrder->id, $ids);
+        $this->assertNotContains($takeoutOrder->id, $ids);
+    }
 }

@@ -30,7 +30,8 @@ class SaleController extends Controller
     {
         Gate::authorize('viewAny', Sale::class);
 
-        $query = Sale::with(['customer', 'user']);
+        $query = Sale::with(['customer', 'user'])
+            ->whereNull('restaurant_order_id');
 
         // Filter by date range
         if ($from = $request->input('from')) {
@@ -130,7 +131,7 @@ class SaleController extends Controller
     {
         Gate::authorize('view', $sale);
 
-        $sale->load(['details.product', 'customer', 'user', 'payments']);
+        $sale->load(['details.product', 'customer', 'user', 'payments', 'restaurantOrder']);
 
         return view('sales.show', [
             'sale' => $sale,
@@ -145,7 +146,7 @@ class SaleController extends Controller
         Gate::authorize('view', $sale);
         abort_if($sale->business_id !== (int) session('current_business_id'), 403);
 
-        $sale->load(['details.product', 'customer', 'user', 'payments']);
+        $sale->load(['details.product', 'customer', 'user', 'payments', 'restaurantOrder']);
         $business = Business::findOrFail(session('current_business_id'));
 
         return view('sales.print-invoice', [
@@ -162,7 +163,7 @@ class SaleController extends Controller
         Gate::authorize('view', $sale);
         abort_if($sale->business_id !== (int) session('current_business_id'), 403);
 
-        $sale->load(['details.product', 'customer', 'user', 'payments']);
+        $sale->load(['details.product', 'customer', 'user', 'payments', 'restaurantOrder']);
         $business = Business::findOrFail(session('current_business_id'));
 
         return view('sales.print-receipt', [

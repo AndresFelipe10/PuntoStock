@@ -39,28 +39,26 @@ class RestaurantOrderController extends Controller
         $todayEnd = (clone $todayBogota)->endOfDay();
 
         // 1. Comandas del día (Hoy en zona horaria America/Bogota)
-        $todayOrders = RestaurantOrder::with(['table', 'user', 'items', 'customer'])
-            ->whereBetween('created_at', [$todayStart, $todayEnd])
-            ->latest()
-            ->get();
+        $todayQuery = RestaurantOrder::with(['table', 'user', 'items', 'customer'])
+            ->whereBetween('created_at', [$todayStart, $todayEnd]);
 
         // 2. Comandas anteriores a hoy con filtros opcionales
         $pastQuery = RestaurantOrder::with(['table', 'user', 'items', 'customer'])
             ->where('created_at', '<', $todayStart);
 
         if ($search = trim((string) $request->input('search', ''))) {
-            $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search);
-            $pastQuery->where(function ($q) use ($escaped) {
-                $q->whereRaw("order_number LIKE ? ESCAPE '!'", ["%{$escaped}%"])
-                  ->orWhereRaw("customer_name LIKE ? ESCAPE '!'", ["%{$escaped}%"])
-                  ->orWhereHas('table', function ($tq) use ($escaped) {
-                      $tq->whereRaw("name LIKE ? ESCAPE '!'", ["%{$escaped}%"]);
-                  });
-            });
+            $pastQuery->searchOrders($search);
+            $todayQuery->searchOrders($search);
         }
 
         if ($status = $request->input('status')) {
             $pastQuery->byStatus($status);
+            $todayQuery->byStatus($status);
+        }
+
+        if ($orderType = $request->input('order_type')) {
+            $pastQuery->byOrderType($orderType);
+            $todayQuery->byOrderType($orderType);
         }
 
         if ($dateFrom = $request->input('date_from')) {
@@ -73,6 +71,7 @@ class RestaurantOrderController extends Controller
             $pastQuery->where('created_at', '<=', $dateToBogota);
         }
 
+        $todayOrders = $todayQuery->latest()->get();
         $pastOrders = $pastQuery->latest()->paginate(15, ['*'], 'past_page')->withQueryString();
 
         // Compatibilidad hacia atrás
