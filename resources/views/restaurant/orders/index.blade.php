@@ -130,20 +130,6 @@
         </div>
     </div>
 
-    @if(session('status'))
-        <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i>{{ session('status') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-
     {{-- Control Segmentado Unificado de Navegación Temporal --}}
     <div class="orders-nav-tabs-wrapper mb-3">
         <ul class="nav nav-pills nav-fill p-1 bg-light border border-secondary border-opacity-25 rounded-4 shadow-sm orders-segmented-control" id="ordersTab" role="tablist">

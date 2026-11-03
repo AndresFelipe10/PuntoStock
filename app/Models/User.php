@@ -63,6 +63,15 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    /**
+     * Get the currently active business (tenant) or fallback to the first associated business.
+     */
+    public function getBusinessAttribute(): ?Business
+    {
+        return app(\App\Services\Tenant\TenantManager::class)->get()
+            ?? $this->businesses()->first();
+    }
+
     public function roles(): BelongsToMany
     {
         return $this->belongsToMany(Role::class, 'business_user')

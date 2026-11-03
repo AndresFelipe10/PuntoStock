@@ -225,6 +225,41 @@
             color: #0a58ca !important;
             border-color: #0a58ca !important;
         }
+
+        /* Botón Estandarizado de Importación de Excel */
+        .btn-import-excel,
+        #btnOpenImportModal {
+            background-color: #ffffff;
+            color: #0d6efd;
+            border: 1px solid #0d6efd;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: pointer;
+        }
+        .btn-import-excel:hover,
+        #btnOpenImportModal:hover {
+            background-color: #0d6efd !important;
+            color: #ffffff !important;
+            border-color: #0d6efd !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25) !important;
+        }
+        .btn-import-excel:hover i,
+        #btnOpenImportModal:hover i {
+            color: #ffffff !important;
+        }
+        .btn-import-excel:active,
+        #btnOpenImportModal:active {
+            background-color: #0b5ed7 !important;
+            border-color: #0a58ca !important;
+            color: #ffffff !important;
+            transform: scale(0.96) translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+        }
+        .btn-import-excel:focus-visible,
+        #btnOpenImportModal:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.35) !important;
+        }
     </style>
 </head>
 <body>
@@ -379,9 +414,23 @@
             @endif
 
             <main class="container py-4">
-                @if (session('status'))
+                @if (session('status') && !session('import_result'))
                     <div class="alert alert-success alert-dismissible fade show rounded-3" role="alert">
                         <i class="bi bi-check-circle-fill me-2"></i> {{ session('status') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                @endif
+
+                @if (session('success') && !session('import_result'))
+                    <div class="alert alert-success alert-dismissible fade show rounded-3" role="alert">
+                        <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                @endif
+
+                @if (session('error'))
+                    <div class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ session('error') }}
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 @endif

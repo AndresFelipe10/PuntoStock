@@ -6,8 +6,10 @@ use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\Product;
+use App\Services\ProductImportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -169,5 +171,81 @@ class ProductController extends Controller
 
         return redirect()->route('products.index')
             ->with('status', "Producto '{$name}' eliminado correctamente.");
+    }
+
+    /**
+     * Download the official Excel template according to the authenticated business type.
+     */
+    public function downloadTemplate(Request $request, ProductImportService $importService): BinaryFileResponse
+    {
+        Gate::authorize('viewAny', Product::class);
+
+        $business = auth()->user()?->business
+            ?? app(\App\Services\Tenant\TenantManager::class)->get()
+            ?? auth()->user()?->businesses()->first();
+
+        // Determinar vertical: default es retail a menos que sea explícitamente restaurante
+        $type = 'retail';
+
+        // Asegurar que solo si el negocio tiene como categoría, tipo o nombre restaurant se le envíe la de restaurante
+        $businessType = strtolower($business->business_type ?? $business->category ?? '');
+
+        if (str_contains($businessType, 'restaurant') || str_contains($businessType, 'gastronomic') || $request->query('type') === 'restaurant') {
+            $type = 'restaurant';
+        }
+
+        if ($request->query('type') === 'retail' || $request->query('type') === 'commerce') {
+            $type = 'retail';
+        }
+
+        if ($type === 'restaurant') {
+            $filePath = public_path('templates/Plantilla_Restaurante_PuntoStock.xlsx');
+            $fileName = 'Plantilla_Restaurante_PuntoStock.xlsx';
+        } else {
+            $filePath = public_path('templates/Plantilla_Comercio_Retail_PuntoStock.xlsx');
+            $fileName = 'Plantilla_Comercio_Retail_PuntoStock.xlsx';
+        }
+
+        if (!file_exists($filePath)) {
+            // Llamar al fallback de generación en tiempo de ejecución en caso de testing o CI sin plantillas físicas
+            $importService->ensureTemplateExists($type);
+        }
+
+        return response()->download($filePath, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /**
+     * Process bulk import of products and inventory from Excel (.xlsx) or CSV (.csv).
+     */
+    public function import(Request $request, ProductImportService $importService): RedirectResponse
+    {
+        Gate::authorize('create', Product::class);
+
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv,txt', 'max:10240'],
+            'update_existing' => ['nullable', 'boolean'],
+        ], [
+            'file.required' => 'Debe seleccionar un archivo Excel o CSV para importar.',
+            'file.mimes' => 'El archivo debe estar en formato Excel (.xlsx, .xls) o CSV (.csv).',
+            'file.max' => 'El archivo no puede superar los 10MB.',
+        ]);
+
+        $tenant = app(\App\Services\Tenant\TenantManager::class)->get()
+            ?? auth()->user()?->business
+            ?? auth()->user()?->businesses()->first();
+        $userId = (int) auth()->id();
+        $updateExisting = $request->boolean('update_existing', true);
+
+        $result = $importService->import(
+            $request->file('file'),
+            $tenant,
+            $userId,
+            $updateExisting
+        );
+
+        return redirect()->route('products.index')
+            ->with('import_result', $result);
     }
 }

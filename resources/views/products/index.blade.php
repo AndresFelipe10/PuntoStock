@@ -7,6 +7,43 @@
 @section('title', $isRestaurant ? 'Menú / Productos' : 'Catálogo de Productos')
 
 @section('content')
+@if(session('import_result'))
+    <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm p-4 mb-4 rounded-3" role="alert" style="background-color: #E6F4EA; border-left: 5px solid #137333 !important;">
+        <div class="d-flex gap-3">
+            <div class="text-success fs-3">
+                <i class="bi bi-check-circle-fill"></i>
+            </div>
+            <div class="flex-grow-1">
+                <h5 class="alert-heading fw-bold text-success-emphasis mb-1">Importación de Catálogo Finalizada</h5>
+                <p class="mb-2 text-dark" style="font-size: 0.95rem;">
+                    Se registraron con éxito <strong>{{ session('import_result')['created_count'] }}</strong> producto(s) nuevo(s)
+                    y se actualizaron <strong>{{ session('import_result')['updated_count'] }}</strong> existente(s).
+                </p>
+                @if(session('import_result')['skipped_count'] > 0 || !empty(session('import_result')['errors']))
+                    <div class="mt-3">
+                        <a class="text-decoration-none fw-semibold text-success" data-bs-toggle="collapse" href="#importErrorsCollapse" role="button" aria-expanded="false" aria-controls="importErrorsCollapse" style="font-size: 0.875rem;">
+                            <i class="bi bi-chevron-down me-1"></i> Ver detalles y advertencias ({{ session('import_result')['skipped_count'] }})
+                        </a>
+                        <div class="collapse mt-2" id="importErrorsCollapse">
+                            <div class="card card-body bg-white border-0 p-3" style="max-height: 200px; overflow-y: auto;">
+                                <ul class="list-unstyled mb-0" style="font-size: 0.85rem;">
+                                    @foreach(session('import_result')['errors'] as $error)
+                                        <li class="text-danger mb-1 d-flex gap-2">
+                                            <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+                                            <span>{{ $error }}</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <div>
         <h3 class="fw-bold mb-1">
@@ -19,9 +56,19 @@
         </p>
     </div>
     @can('create', App\Models\Product::class)
-        <a href="{{ route('products.create') }}" class="btn btn-primary rounded-pill px-4 fw-semibold">
-            <i class="bi bi-plus-circle-fill me-1"></i> {{ $isRestaurant ? 'Nuevo Plato / Producto' : 'Registrar Producto' }}
-        </a>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button"
+                    class="btn btn-outline-primary btn-import-excel rounded-pill px-3 py-2 fw-semibold d-inline-flex align-items-center gap-2 shadow-sm"
+                    data-bs-toggle="modal"
+                    data-bs-target="#importProductsModal"
+                    id="btnOpenImportModal">
+                <i class="bi bi-file-earmark-spreadsheet fs-5"></i>
+                <span>Importar Excel</span>
+            </button>
+            <a href="{{ route('products.create') }}" class="btn btn-primary rounded-pill px-4 fw-semibold">
+                <i class="bi bi-plus-circle-fill me-1"></i> {{ $isRestaurant ? 'Nuevo Plato / Producto' : 'Registrar Producto' }}
+            </a>
+        </div>
     @endcan
 </div>
 
@@ -296,6 +343,79 @@
         </div>
     </div>
 </div>
+
+@can('create', App\Models\Product::class)
+{{-- Modal Corporativo de Importación Masiva Excel / CSV --}}
+<div class="modal fade" id="importProductsModal" tabindex="-1" aria-labelledby="importProductsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom-0 pb-0">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-excel-fill text-success fs-3"></i>
+                    <h5 class="modal-title fw-bold" id="importProductsModalLabel">
+                        {{ $isRestaurant ? 'Importar Menú y Productos desde Excel' : 'Importar Catálogo e Inventario desde Excel' }}
+                    </h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            
+            <form action="{{ route('products.import') }}" method="POST" enctype="multipart/form-data" id="formImportProducts">
+                @csrf
+                <div class="modal-body py-3">
+                    {{-- Paso 1: Descargar Plantilla --}}
+                    <div class="card border-0 bg-light rounded-3 p-3 mb-3">
+                        <div class="d-flex align-items-start gap-2">
+                            <span class="badge bg-primary rounded-circle p-2 px-2.5">1</span>
+                            <div class="flex-grow-1">
+                                <h6 class="fw-bold mb-1">Descargar Plantilla Exclusiva</h6>
+                                <p class="text-muted small mb-2">
+                                    @if($isRestaurant)
+                                        Descarga la plantilla oficial para Restaurantes. Incluye la columna <strong>Modalidad</strong> para diferenciar platos de <strong>Carta / Cocina</strong> y artículos de <strong>Mercancía</strong>.
+                                    @else
+                                        Descarga la plantilla oficial para Comercio Retail con columnas listas para precios, costos, códigos SKU y existencias de inventario.
+                                    @endif
+                                </p>
+                                <a href="{{ route('products.template.download', ['type' => $isRestaurant ? 'restaurant' : 'retail']) }}" 
+                                   class="btn btn-outline-success btn-sm rounded-pill fw-semibold d-inline-flex align-items-center gap-2"
+                                   data-no-disable="true">
+                                    <i class="bi bi-download"></i>
+                                    <span>Descargar Plantilla Oficial (.xlsx)</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Paso 2: Subir Archivo --}}
+                    <div class="card border-0 bg-light rounded-3 p-3">
+                        <div class="d-flex align-items-start gap-2">
+                            <span class="badge bg-primary rounded-circle p-2 px-2.5">2</span>
+                            <div class="flex-grow-1">
+                                <h6 class="fw-bold mb-1">Subir Archivo Completado</h6>
+                                <p class="text-muted small mb-2">Selecciona tu archivo de Excel (.xlsx, .xls) o archivo separado por comas (.csv).</p>
+                                <input type="file" name="file" accept=".xlsx,.xls,.csv" class="form-control mb-3" required id="importFileInput">
+                                
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="update_existing" id="update_existing" value="1" checked>
+                                    <label class="form-check-label small fw-semibold" for="update_existing">
+                                        Actualizar precios y sumar/ajustar stock si el Código SKU o nombre ya existe en mi catálogo
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-top-0 pt-0">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold" id="btnSubmitImport">
+                        <i class="bi bi-cloud-upload me-1"></i> Procesar e Importar Catálogo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endcan
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {

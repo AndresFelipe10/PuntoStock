@@ -787,5 +787,54 @@ class OrderSettlementTest extends TestCase
         $this->assertEquals(5000.00, (float) $sale->delivery_fee);
         $this->assertEquals(53600.00, (float) $sale->total);
     }
+
+    /**
+     * Test: La notificación flash de cobro exitoso se renderiza exactamente 1 sola vez en show (sin duplicidad).
+     */
+    public function test_settlement_success_flash_message_renders_exactly_once_without_duplicates(): void
+    {
+        $order = RestaurantOrder::create([
+            'business_id' => $this->businessA->id,
+            'user_id' => $this->adminA->id,
+            'table_id' => $this->tableA->id,
+            'order_number' => 'ORD-0099',
+            'order_type' => 'table',
+            'status' => 'open',
+            'subtotal' => 25000,
+            'total' => 25000,
+        ]);
+
+        RestaurantOrderItem::create([
+            'business_id' => $this->businessA->id,
+            'order_id' => $order->id,
+            'product_id' => $this->dishPasta->id,
+            'quantity' => 1,
+            'unit_price' => 25000,
+            'subtotal' => 25000,
+            'status' => 'served',
+            'payment_status' => 'pending',
+            'batch_number' => 1,
+        ]);
+
+        $response = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->post(route('restaurant.orders.charge', $order), [
+                'payments' => [
+                    ['method' => 'cash', 'amount' => 25000, 'cash_received' => 25000, 'change_given' => 0],
+                ],
+            ]);
+
+        $response->assertRedirect(route('restaurant.orders.show', $order));
+
+        $followResponse = $this->followRedirects($response);
+        $followResponse->assertOk();
+
+        $content = $followResponse->getContent();
+        $this->assertSame(
+            1,
+            substr_count($content, 'cobrada y liquidada exitosamente'),
+            'El mensaje de éxito de comanda cobrada debe renderizarse exactamente 1 sola vez en el HTML.'
+        );
+    }
 }
 
