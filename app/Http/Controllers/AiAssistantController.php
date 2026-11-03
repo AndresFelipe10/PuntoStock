@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\AI\Services\AiQueryService;
 use App\Models\Business;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -68,14 +69,19 @@ class AiAssistantController extends Controller
     /**
      * Clear conversational memory for the current tenant.
      */
-    public function clearContext(Request $request, AiQueryService $aiQueryService): JsonResponse
+    public function clearContext(Request $request, AiQueryService $aiQueryService): JsonResponse|RedirectResponse
     {
         $businessId = (int) (session('current_business_id') ?? $request->user()->current_business_id);
         $aiQueryService->clearContext($businessId);
+        session()->forget(['ai_chat_history', 'ai_context']);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Memoria conversacional reiniciada exitosamente.',
-        ]);
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Memoria conversacional reiniciada exitosamente.',
+            ]);
+        }
+
+        return back()->with('status', 'Contexto del asistente reiniciado exitosamente.');
     }
 }

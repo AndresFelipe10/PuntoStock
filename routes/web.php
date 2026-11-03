@@ -85,6 +85,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
         Route::get('/products', [ProductController::class, 'index'])->name('products.index');
         Route::get('/products/template/download', [ProductController::class, 'downloadTemplate'])->name('products.template.download');
+        Route::post('/products/import', [ProductController::class, 'import'])->name('products.import');
         Route::get('/products/{product}', [ProductController::class, 'show'])->name('products.show');
 
         // Módulo Restaurante: Salón, Mesas y Comandas (Solo comercios tipo Restaurante)
@@ -167,7 +168,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/api/products/search', ProductSearchController::class)->middleware('throttle:60,1')->name('api.products.search');
 
         // Asistente de Consultas en Lenguaje Natural (IA)
-        Route::get('/ai', fn() => redirect()->route('ai.index'));
+        Route::redirect('/ai', '/ai/assistant');
         Route::get('/ai/assistant', [AiAssistantController::class, 'index'])->name('ai.index');
         Route::post('/ai/ask', [AiAssistantController::class, 'ask'])->middleware('throttle:30,1')->name('ai.ask');
         Route::post('/ai/clear-context', [AiAssistantController::class, 'clearContext'])->name('ai.clear-context');
@@ -196,7 +197,6 @@ Route::middleware('auth')->group(function () {
             // Gestión de Productos (Escritura)
             Route::get('/products-create', [ProductController::class, 'create'])->name('products.create');
             Route::post('/products', [ProductController::class, 'store'])->name('products.store');
-            Route::post('/products/import', [ProductController::class, 'import'])->name('products.import');
             Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->name('products.edit');
             Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
             Route::delete('/products/{product}', [ProductController::class, 'destroy'])->name('products.destroy');

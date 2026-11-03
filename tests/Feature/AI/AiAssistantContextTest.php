@@ -299,6 +299,22 @@ class AiAssistantContextTest extends TestCase
      */
     public function test_clear_context_endpoint_resets_session_memory(): void
     {
+        $this->assertTrue(\Illuminate\Support\Facades\Route::has('ai.clear-context'));
+        $this->assertEquals(url('/ai/clear-context'), route('ai.clear-context'));
+
+        // GET /ai redirige a /ai/assistant
+        $redirectResponse = $this->actingAs($this->retailAdmin)
+            ->withSession(['current_business_id' => $this->retailBusiness->id])
+            ->get('/ai');
+        $redirectResponse->assertRedirect('/ai/assistant');
+
+        // GET /ai/assistant renderiza vista con referencia a ai.clear-context
+        $viewResponse = $this->actingAs($this->retailAdmin)
+            ->withSession(['current_business_id' => $this->retailBusiness->id])
+            ->get(route('ai.index'));
+        $viewResponse->assertOk();
+        $viewResponse->assertSee(route('ai.clear-context'), false);
+
         Customer::create([
             'business_id' => $this->retailBusiness->id,
             'name' => 'Cliente Activo',
@@ -310,10 +326,10 @@ class AiAssistantContextTest extends TestCase
             ->withSession(['current_business_id' => $this->retailBusiness->id])
             ->postJson('/ai/ask', ['query' => 'cuantos clientes tenemos']);
 
-        // Limpiar contexto
+        // Limpiar contexto via JSON
         $clearResponse = $this->actingAs($this->retailAdmin)
             ->withSession(['current_business_id' => $this->retailBusiness->id])
-            ->postJson('/ai/clear-context');
+            ->postJson(route('ai.clear-context'));
 
         $clearResponse->assertOk();
         $clearResponse->assertJson(['success' => true]);
@@ -325,6 +341,15 @@ class AiAssistantContextTest extends TestCase
 
         $followUp->assertOk();
         $this->assertEquals('unrecognized', $followUp->json('intent'));
+
+        // Limpiar contexto via solicitud web tradicional (redirect back)
+        $webClearResponse = $this->actingAs($this->retailAdmin)
+            ->withSession(['current_business_id' => $this->retailBusiness->id])
+            ->from(route('ai.index'))
+            ->post(route('ai.clear-context'));
+
+        $webClearResponse->assertRedirect(route('ai.index'));
+        $webClearResponse->assertSessionHas('status', 'Contexto del asistente reiniciado exitosamente.');
     }
 
     /**

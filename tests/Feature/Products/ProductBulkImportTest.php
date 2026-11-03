@@ -494,5 +494,37 @@ class ProductBulkImportTest extends TestCase
         // Verifica que la alerta genérica de status queda suprimida por layouts/app
         $response->assertDontSee('<i class="bi bi-check-circle-fill me-2"></i> Importación finalizada: 12 creados, 0 actualizados.', false);
     }
+
+    /**
+     * Test 9: La ruta products.import está registrada, resuelve el método POST y la vista renderiza sin RouteNotFoundException.
+     */
+    public function test_products_import_route_is_registered_and_catalog_renders_without_route_not_found(): void
+    {
+        $this->assertTrue(\Illuminate\Support\Facades\Route::has('products.import'));
+        $this->assertEquals(url('/products/import'), route('products.import'));
+
+        // Admin puede acceder a productos y la vista renderiza la acción del modal
+        $adminResponse = $this->actingAs($this->retailAdmin)
+            ->withSession(['current_business_id' => $this->retailBusiness->id])
+            ->get(route('products.index'));
+
+        $adminResponse->assertStatus(200);
+        $adminResponse->assertSee(route('products.import'), false);
+
+        // Empleado también accede al catálogo sin RouteNotFoundException
+        $employeeResponse = $this->actingAs($this->retailEmployee)
+            ->withSession(['current_business_id' => $this->retailBusiness->id])
+            ->get(route('products.index'));
+
+        $employeeResponse->assertStatus(200);
+
+        // POST a products.import resuelve hacia ProductController@import y valida archivo requerido
+        $postResponse = $this->actingAs($this->retailAdmin)
+            ->withSession(['current_business_id' => $this->retailBusiness->id])
+            ->post(route('products.import'), []);
+
+        $postResponse->assertStatus(302);
+        $postResponse->assertSessionHasErrors('file');
+    }
 }
 
