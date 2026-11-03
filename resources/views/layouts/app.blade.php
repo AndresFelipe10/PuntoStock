@@ -419,9 +419,7 @@
                         <i class="bi bi-check-circle-fill me-2"></i> {{ session('status') }}
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
-                @endif
-
-                @if (session('success') && !session('import_result'))
+                @elseif (session('success') && !session('import_result'))
                     <div class="alert alert-success alert-dismissible fade show rounded-3" role="alert">
                         <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>

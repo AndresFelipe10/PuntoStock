@@ -128,6 +128,16 @@ class BlockDSecurityTest extends TestCase
         $response = $this->actingAsTenant($this->adminA, $this->businessA)->post(route('expenses.store'), $storeData);
         $response->assertRedirect(route('expenses.index'));
         $response->assertSessionHas('success');
+        $response->assertSessionMissing('status');
+
+        $indexResponse = $this->actingAsTenant($this->adminA, $this->businessA)
+            ->withSession(['success' => session('success')])
+            ->get(route('expenses.index'));
+        $this->assertSame(
+            1,
+            substr_count($indexResponse->getContent(), 'Gasto registrado exitosamente'),
+            'La notificación de éxito al registrar gasto debe renderizarse exactamente 1 vez en el HTML.'
+        );
 
         $this->assertDatabaseHas('expenses', [
             'business_id' => $this->businessA->id,

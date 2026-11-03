@@ -78,7 +78,6 @@ class ExpenseController extends Controller
         );
 
         return redirect()->route('expenses.index')
-            ->with('status', "Gasto registrado exitosamente (Monto: $" . number_format($expense->amount, 0, ',', '.') . ").")
             ->with('success', "Gasto registrado exitosamente (Monto: $" . number_format($expense->amount, 0, ',', '.') . ").");
     }
 
@@ -134,7 +133,6 @@ class ExpenseController extends Controller
         );
 
         return redirect()->route('expenses.index')
-            ->with('status', 'Gasto actualizado exitosamente.')
             ->with('success', 'Gasto actualizado exitosamente.');
     }
 
@@ -148,7 +146,6 @@ class ExpenseController extends Controller
         $this->expenseService->deleteExpense($expense);
 
         return redirect()->route('expenses.index')
-            ->with('status', 'Gasto eliminado exitosamente.')
             ->with('success', 'Gasto eliminado exitosamente.');
     }
 
@@ -160,7 +157,6 @@ class ExpenseController extends Controller
         $this->expenseService->markAsPaid($expense, $request->validated());
 
         return redirect()->back()
-            ->with('status', 'Gasto marcado como pagado exitosamente.')
             ->with('success', 'Gasto marcado como pagado exitosamente.');
     }
 
