@@ -2,23 +2,29 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 
 class LegalController extends Controller
 {
     /**
-     * Muestra los Términos y Condiciones del Servicio PuntoStock SaaS.
+     * Redirección 301 permanente a los Términos y Condiciones oficiales en puntostockpos.com.
      */
-    public function terms(): View
+    public function terms(): RedirectResponse
     {
-        return view('legal.terms');
+        return redirect()->away(
+            config('app.legal_terms_url', 'https://puntostockpos.com/terminos-y-condiciones/'),
+            301
+        );
     }
 
     /**
-     * Muestra la Política de Tratamiento de Datos Personales y Cookies Técnicas.
+     * Redirección 301 permanente a la Política de Privacidad oficial en puntostockpos.com.
      */
-    public function privacy(): View
+    public function privacy(): RedirectResponse
     {
-        return view('legal.privacy');
+        return redirect()->away(
+            config('app.legal_privacy_url', 'https://puntostockpos.com/politica-de-privacidad/'),
+            301
+        );
     }
 }

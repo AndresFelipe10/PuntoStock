@@ -125,6 +125,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | URLs Comerciales y Normativas Oficiales
+    |--------------------------------------------------------------------------
+    */
+    'commercial_url' => env('COMMERCIAL_URL', 'https://puntostockpos.com'),
+    'legal_terms_url' => env('LEGAL_TERMS_URL', 'https://puntostockpos.com/terminos-y-condiciones/'),
+    'legal_privacy_url' => env('LEGAL_PRIVACY_URL', 'https://puntostockpos.com/politica-de-privacidad/'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Support WhatsApp Number
     |--------------------------------------------------------------------------
     */

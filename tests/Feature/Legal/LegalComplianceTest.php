@@ -37,38 +37,33 @@ class LegalComplianceTest extends TestCase
     }
 
     /**
-     * 1. Las rutas públicas legales son accesibles sin autenticación (HTTP 200).
+     * 1. Las rutas públicas legales emiten redirección canónica 301 hacia el dominio oficial puntostockpos.com.
      */
     public function test_public_legal_routes_are_accessible_without_authentication(): void
     {
         $termsResponse = $this->get('/terminos-y-condiciones');
-        $termsResponse->assertStatus(200);
-        $termsResponse->assertSee('Términos y Condiciones del Servicio');
-        $termsResponse->assertSee('Software como Servicio');
-        $termsResponse->assertSee('Ley 527 de 1999');
-        $termsResponse->assertSee('DIAN');
+        $termsResponse->assertStatus(301);
+        $this->assertEquals('https://puntostockpos.com/terminos-y-condiciones/', $termsResponse->headers->get('Location'));
 
         $privacyResponse = $this->get('/politica-de-privacidad');
-        $privacyResponse->assertStatus(200);
-        $privacyResponse->assertSee('Política de Privacidad y Tratamiento de Datos');
-        $privacyResponse->assertSee('Ley 1581 de 2012');
-        $privacyResponse->assertSee('laravel_session');
-        $privacyResponse->assertSee('XSRF-TOKEN');
-        $privacyResponse->assertSee('Encargado del Tratamiento');
+        $privacyResponse->assertStatus(301);
+        $this->assertEquals('https://puntostockpos.com/politica-de-privacidad/', $privacyResponse->headers->get('Location'));
     }
 
     /**
-     * 2. Usuarios autenticados también pueden consultar los documentos legales.
+     * 2. Usuarios autenticados que consulten las rutas legales también son redirigidos permanentemente (301).
      */
     public function test_authenticated_users_can_access_legal_routes(): void
     {
         $this->actingAs($this->adminUser);
 
         $termsResponse = $this->get(route('legal.terms'));
-        $termsResponse->assertStatus(200);
+        $termsResponse->assertStatus(301);
+        $this->assertEquals('https://puntostockpos.com/terminos-y-condiciones/', $termsResponse->headers->get('Location'));
 
         $privacyResponse = $this->get(route('legal.privacy'));
-        $privacyResponse->assertStatus(200);
+        $privacyResponse->assertStatus(301);
+        $this->assertEquals('https://puntostockpos.com/politica-de-privacidad/', $privacyResponse->headers->get('Location'));
     }
 
     /**
@@ -160,10 +155,16 @@ class LegalComplianceTest extends TestCase
         $response = $this->get(route('login'));
 
         $response->assertStatus(200);
-        $response->assertSee(route('legal.terms'));
-        $response->assertSee(route('legal.privacy'));
+        $response->assertSee('https://puntostockpos.com/terminos-y-condiciones/', false);
+        $response->assertSee('https://puntostockpos.com/politica-de-privacidad/', false);
         $response->assertSee('Términos y Condiciones');
         $response->assertSee('Privacidad y Cookies');
+        $response->assertSee('target="_blank"', false);
+        $response->assertSee('rel="noopener noreferrer"', false);
+        $response->assertSee('https://puntostockpos.com', false);
+        $response->assertSee('¿Quieres PuntoStock para tu negocio?');
+        $response->assertSee('Escríbenos');
+        $response->assertSee('https://wa.me/' . config('app.support_whatsapp', '573163765939'), false);
     }
 
     /**

@@ -34,7 +34,7 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
-// Rutas públicas legales y normativas (Ley 527/1999 y Ley 1581/2012)
+// Rutas públicas legales y normativas (Redirección canónica 301 hacia dominio oficial puntostockpos.com)
 Route::get('/terminos-y-condiciones', [LegalController::class, 'terms'])->name('legal.terms');
 Route::get('/politica-de-privacidad', [LegalController::class, 'privacy'])->name('legal.privacy');
 

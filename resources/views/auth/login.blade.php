@@ -88,16 +88,24 @@
 
 @section('footer')
     <div class="mb-2">
-        ¿Quieres PuntoStock para tu negocio? 
-        <a href="https://wa.me/{{ config('app.support_whatsapp', '573163765939') }}?text={{ urlencode('Hola, quiero información sobre PuntoStock para mi negocio.') }}" 
+        <a href="{{ config('app.commercial_url', 'https://puntostockpos.com') }}" 
            target="_blank" rel="noopener noreferrer" 
-           class="text-primary text-decoration-none fw-semibold">
+           class="text-secondary text-decoration-none">
+            ¿Quieres PuntoStock para tu negocio?
+        </a>
+        <a href="https://wa.me/{{ config('app.support_whatsapp', '573163765939') }}?text={{ urlencode('Hola, deseo más información sobre PuntoStock POS') }}" 
+           target="_blank" rel="noopener noreferrer" 
+           class="text-primary text-decoration-none fw-semibold ms-1">
             <i class="bi bi-whatsapp me-1"></i>Escríbenos
         </a>
     </div>
     <div class="small text-muted pt-2 border-top">
-        <a href="{{ route('legal.terms') }}" class="text-secondary text-decoration-none me-2">Términos y Condiciones</a>
+        <a href="{{ config('app.legal_terms_url', 'https://puntostockpos.com/terminos-y-condiciones/') }}" 
+           target="_blank" rel="noopener noreferrer" 
+           class="text-secondary text-decoration-none me-2">Términos y Condiciones</a>
         <span>•</span>
-        <a href="{{ route('legal.privacy') }}" class="text-secondary text-decoration-none ms-2">Privacidad y Cookies</a>
+        <a href="{{ config('app.legal_privacy_url', 'https://puntostockpos.com/politica-de-privacidad/') }}" 
+           target="_blank" rel="noopener noreferrer" 
+           class="text-secondary text-decoration-none ms-2">Privacidad y Cookies</a>
     </div>
 @endsection
