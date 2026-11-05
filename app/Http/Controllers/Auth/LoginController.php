@@ -100,9 +100,7 @@ class LoginController extends Controller
             $user = $request->user();
 
             if ($user && Schema::hasColumn('users', 'current_session_id')) {
-                if ($user->current_session_id === $request->session()->get('auth_session_token')) {
-                    $user->forceFill(['current_session_id' => null])->saveQuietly();
-                }
+                $user->forceFill(['current_session_id' => null])->saveQuietly();
             }
         } catch (\Throwable $e) {
             Log::warning('No se pudo limpiar token de sesión única en logout: ' . $e->getMessage());

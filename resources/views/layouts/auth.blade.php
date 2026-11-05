@@ -101,6 +101,20 @@
                         </div>
                     @endif
 
+                    @if (session('warning'))
+                        <div class="alert alert-warning d-flex align-items-center mb-4 py-2 px-3 small rounded-3" role="alert">
+                            <i class="bi bi-exclamation-circle-fill me-2"></i>
+                            <div>{{ session('warning') }}</div>
+                        </div>
+                    @endif
+
+                    @if (session('error'))
+                        <div class="alert alert-danger d-flex align-items-center mb-4 py-2 px-3 small rounded-3" role="alert">
+                            <i class="bi bi-slash-circle-fill me-2"></i>
+                            <div>{{ session('error') }}</div>
+                        </div>
+                    @endif
+
                     @if ($errors->any())
                         <div class="alert alert-danger mb-4 py-2 px-3 small rounded-3" role="alert">
                             <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle-fill me-1"></i> Hubo errores con tu solicitud:</div>

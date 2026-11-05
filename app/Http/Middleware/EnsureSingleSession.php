@@ -18,7 +18,7 @@ class EnsureSingleSession
         try {
             $user = $request->user();
 
-            if ($user && ! empty($user->current_session_id)) {
+            if ($user && ! empty($user->current_session_id) && $request->session()->has('auth_session_token')) {
                 $sessionToken = $request->session()->get('auth_session_token');
 
                 // Si el usuario tiene un current_session_id registrado por un login real
