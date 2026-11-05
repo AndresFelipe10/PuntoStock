@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', [
             SecurityHeadersMiddleware::class,
             \App\Http\Middleware\EnsurePasswordIsChanged::class,
+            \App\Http\Middleware\EnsureSingleSession::class,
         ]);
 
         $middleware->prependToPriorityList(

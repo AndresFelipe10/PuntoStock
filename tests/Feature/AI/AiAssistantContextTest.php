@@ -415,4 +415,34 @@ class AiAssistantContextTest extends TestCase
         $closedResponse->assertSee('Imprimir Ticket Fiscal');
         $closedResponse->assertDontSee('(80mm)');
     }
+
+    /**
+     * Test 7: La vista del asistente IA renderiza el layout responsive móvil con altura útil y elementos tipo chat.
+     */
+    public function test_ai_assistant_view_renders_mobile_responsive_chat_layout_and_capsule_elements(): void
+    {
+        $response = $this->actingAs($this->retailAdmin)
+            ->withSession(['current_business_id' => $this->retailBusiness->id])
+            ->get(route('ai.index'));
+
+        $response->assertOk();
+
+        // 1. Reglas de diseño móvil exclusivas (< 768px)
+        $response->assertSee('@media (max-width: 767.98px)', false);
+        $response->assertSee('min-height: 54vh', false);
+        $response->assertSee('max-height: 60vh', false);
+        $response->assertSee('background-color: #F8FAFC', false);
+        $response->assertSee('chat-input-capsule', false);
+        $response->assertSee('chat-send-btn-compact', false);
+        $response->assertSee('ai-avatar', false);
+        $response->assertSee('ai-message-bubble', false);
+        $response->assertSee('user-message-bubble', false);
+
+        // 2. Invarianza del diseño desktop (>= 768px)
+        $response->assertSee('@media (min-width: 768px)', false);
+        $response->assertSee('min-height: 520px', false);
+        $response->assertSee('height: 600px', false);
+        $response->assertSee('quick-prompts-section', false);
+        $response->assertSee('mobile-security-section', false);
+    }
 }

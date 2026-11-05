@@ -6,14 +6,84 @@
 <style>
     @media (max-width: 767.98px) {
         .chat-conversation-card {
-            max-height: 38vh;
-            min-height: 200px;
+            min-height: 54vh;
+            max-height: 60vh;
             display: flex;
             flex-direction: column;
+            border-radius: 1rem !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
+            overflow: hidden;
         }
         .chat-messages-body {
             overflow-y: auto;
             flex: 1 1 auto;
+            background-color: #F8FAFC !important;
+            padding: 0.75rem 0.65rem !important;
+            border-top: 1px solid #f1f5f9;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .chat-header-compact {
+            padding: 0.5rem 0.75rem !important;
+            background-color: #ffffff !important;
+        }
+        .chat-footer-compact {
+            padding: 0.5rem !important;
+            background-color: #ffffff !important;
+        }
+        .ai-avatar {
+            width: 28px !important;
+            height: 28px !important;
+            min-width: 28px !important;
+            font-size: 0.8rem !important;
+        }
+        .ai-avatar i {
+            font-size: 0.8rem !important;
+        }
+        .ai-message-bubble {
+            max-width: 92% !important;
+            padding: 0.65rem 0.85rem !important;
+            border-radius: 1rem !important;
+        }
+        .user-message-bubble {
+            max-width: 90% !important;
+            padding: 0.65rem 0.85rem !important;
+            border-radius: 1rem !important;
+        }
+        .chat-input-capsule {
+            background-color: #f1f5f9 !important;
+            border-radius: 2rem !important;
+            padding: 0.2rem 0.35rem 0.2rem 0.75rem !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+        .chat-input-capsule input {
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            font-size: 0.9rem !important;
+            padding-left: 0.25rem !important;
+        }
+        .chat-input-capsule input:focus {
+            box-shadow: none !important;
+        }
+        .chat-send-btn-compact {
+            width: 44px !important;
+            height: 44px !important;
+            min-width: 44px !important;
+            min-height: 44px !important;
+            padding: 0 !important;
+            border-radius: 50% !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        .chat-header-title {
+            font-size: 1.1rem !important;
+            margin-bottom: 0.2rem !important;
+        }
+        .chat-header-badge {
+            font-size: 0.72rem !important;
+            padding: 0.25rem 0.5rem !important;
         }
     }
     @media (min-width: 768px) {
@@ -24,6 +94,17 @@
         .chat-messages-body {
             overflow-y: auto;
             flex-grow: 1;
+        }
+        .ai-avatar {
+            width: 38px;
+            height: 38px;
+            min-width: 38px;
+        }
+        .ai-message-bubble {
+            max-width: 85%;
+        }
+        .user-message-bubble {
+            max-width: 80%;
         }
     }
     .chat-messages-body {
@@ -55,9 +136,9 @@
     }
 </style>
 
-<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center py-2 py-md-3 mb-2 mb-md-3 gap-2">
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center py-1 py-md-3 mb-2 mb-md-3 gap-2">
     <div>
-        <h3 class="fw-bold mb-1 fs-5 fs-md-3">
+        <h3 class="fw-bold mb-1 fs-6 fs-md-3 chat-header-title">
             <i class="bi bi-stars text-primary me-1"></i> Asistente de Consultas
         </h3>
         <p class="text-muted small mb-0 d-none d-md-block">
@@ -65,14 +146,14 @@
         </p>
     </div>
     <div class="d-flex flex-wrap gap-1 gap-md-2 align-items-center">
-        <span class="badge bg-success-subtle text-success rounded-pill px-2 px-md-3 py-1 py-md-2">
+        <span class="badge bg-success-subtle text-success rounded-pill px-2 px-md-3 py-1 py-md-2 chat-header-badge">
             <i class="bi bi-shield-check me-1"></i> Solo Lectura
         </span>
-        <span class="badge bg-primary-subtle text-primary rounded-pill px-2 px-md-3 py-1 py-md-2">
+        <span class="badge bg-primary-subtle text-primary rounded-pill px-2 px-md-3 py-1 py-md-2 chat-header-badge">
             <i class="bi bi-building-check me-1"></i> Tenant Aislado
         </span>
         @if(!$enabled)
-            <span class="badge bg-warning-subtle text-dark rounded-pill px-2 px-md-3 py-1 py-md-2">
+            <span class="badge bg-warning-subtle text-dark rounded-pill px-2 px-md-3 py-1 py-md-2 chat-header-badge">
                 <i class="bi bi-power me-1"></i> Desactivado en .env
             </span>
         @endif
@@ -101,7 +182,7 @@
     <div class="col-lg-8">
         {{-- Contenedor del Chat --}}
         <div class="card card-custom bg-white border-0 shadow-sm d-flex flex-column chat-conversation-card">
-            <div class="card-header bg-transparent border-0 pt-3 px-4 d-flex justify-content-between align-items-center">
+            <div class="card-header bg-transparent border-0 pt-3 px-4 d-flex justify-content-between align-items-center chat-header-compact">
                 <span class="small fw-semibold text-muted text-uppercase">Conversación</span>
                 <button type="button" class="btn btn-sm btn-link text-secondary text-decoration-none" id="clearChatBtn">
                     <i class="bi bi-trash me-1"></i> Limpiar
@@ -110,11 +191,11 @@
 
             <div class="card-body px-4 chat-messages-body" id="chatMessages">
                 {{-- Mensaje Inicial de Bienvenida --}}
-                <div class="d-flex gap-3 mb-4">
-                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 38px; height: 38px;">
+                <div class="d-flex gap-2 gap-md-3 mb-3 mb-md-4">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ai-avatar">
                         <i class="bi bi-stars fs-5"></i>
                     </div>
-                    <div class="bg-light p-3 rounded-4 shadow-sm" style="max-width: 85%;">
+                    <div class="bg-light p-3 rounded-4 shadow-sm ai-message-bubble">
                         <p class="mb-1 text-dark">
                             ¡Hola! Soy tu asistente de consultas de <strong>{{ $currentBusiness->name }}</strong>.
                         </p>
@@ -126,18 +207,20 @@
             </div>
 
             {{-- Formulario de Entrada Inmediata --}}
-            <div class="card-footer bg-white border-0 p-2 p-md-3">
+            <div class="card-footer bg-white border-0 p-2 p-md-3 chat-footer-compact">
                 <div class="chat-input-wrapper">
-                    <form id="queryForm" class="d-flex gap-2 align-items-center">
+                    <form id="queryForm" class="d-flex gap-2 align-items-center chat-input-capsule">
                         @csrf
                         <input type="text" id="userInput" class="form-control rounded-pill px-3 px-md-4 py-2 shadow-sm"
                                placeholder="Escribe tu consulta aquí..."
                                autocomplete="off" maxlength="500"
                                style="min-height: 44px;">
-                        <button type="submit" class="btn btn-primary rounded-pill px-3 px-md-4 fw-semibold d-inline-flex align-items-center justify-content-center gap-2 shadow-sm flex-shrink-0" 
+                        <button type="submit" class="btn btn-primary rounded-pill px-3 px-md-4 fw-semibold d-inline-flex align-items-center justify-content-center gap-2 shadow-sm flex-shrink-0 chat-send-btn-compact" 
                                 id="sendBtn"
-                                style="min-height: 44px;">
-                            <span>Enviar</span>
+                                style="min-height: 44px;"
+                                aria-label="Enviar consulta"
+                                title="Enviar consulta">
+                            <span class="d-none d-md-inline">Enviar</span>
                             <i class="bi bi-send-fill"></i>
                         </button>
                     </form>
@@ -236,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const wrapper = document.createElement('div');
         wrapper.className = 'd-flex justify-content-end mb-3';
         wrapper.innerHTML = `
-            <div class="bg-primary text-white p-3 rounded-4 shadow-sm" style="max-width: 80%;">
+            <div class="bg-primary text-white p-3 rounded-4 shadow-sm user-message-bubble">
                 <p class="mb-0">${escapeHtml(text)}</p>
             </div>
         `;
@@ -298,7 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const appendAssistantMessage = (summary, data = []) => {
         const wrapper = document.createElement('div');
-        wrapper.className = 'd-flex gap-3 mb-4';
+        wrapper.className = 'd-flex gap-2 gap-md-3 mb-3 mb-md-4';
 
         let dataHtml = '';
         if (Array.isArray(data) && data.length > 0) {
@@ -326,10 +409,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         wrapper.innerHTML = `
-            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 38px; height: 38px;">
+            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ai-avatar">
                 <i class="bi bi-stars fs-5"></i>
             </div>
-            <div class="bg-light p-3 rounded-4 shadow-sm" style="max-width: 85%;">
+            <div class="bg-light p-3 rounded-4 shadow-sm ai-message-bubble">
                 <p class="mb-1 text-dark">${escapeHtml(summary)}</p>
                 ${dataHtml}
             </div>
@@ -341,12 +424,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const appendLoading = () => {
         const loadingDiv = document.createElement('div');
         loadingDiv.id = 'chatLoading';
-        loadingDiv.className = 'd-flex gap-3 mb-3';
+        loadingDiv.className = 'd-flex gap-2 gap-md-3 mb-3';
         loadingDiv.innerHTML = `
-            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 38px; height: 38px;">
+            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ai-avatar">
                 <div class="spinner-border spinner-border-sm text-light" role="status"></div>
             </div>
-            <div class="bg-light p-3 rounded-4 text-muted small">
+            <div class="bg-light p-3 rounded-4 text-muted small ai-message-bubble">
                 Analizando tu consulta con seguridad...
             </div>
         `;

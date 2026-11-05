@@ -28,6 +28,7 @@ class User extends Authenticatable
         'must_change_password',
         'terms_accepted_at',
         'terms_accepted_ip',
+        'current_session_id',
     ];
 
     /**
@@ -38,6 +39,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'current_session_id',
     ];
 
     /**
