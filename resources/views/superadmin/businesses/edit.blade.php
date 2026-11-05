@@ -42,19 +42,19 @@
                                 @endphp
                                 @if ($daysLeft < 0)
                                     <span class="badge bg-danger bg-opacity-75 text-white border border-danger">
-                                        <i class="bi bi-slash-circle-fill me-1"></i>⛔ Vencida (hace {{ abs($daysLeft) }} {{ abs($daysLeft) === 1 ? 'día' : 'días' }})
+                                        <i class="bi bi-slash-circle-fill me-1"></i>Vencida (hace {{ abs($daysLeft) }} {{ abs($daysLeft) === 1 ? 'día' : 'días' }})
                                     </span>
                                 @elseif ($business->isCriticalExpiring())
                                     <span class="badge bg-danger text-white">
-                                        <i class="bi bi-exclamation-octagon-fill me-1"></i>🚨 Notif. Crítica ({{ $daysLeft === 0 ? 'Vence hoy' : '1d restante' }})
+                                        <i class="bi bi-exclamation-octagon-fill me-1"></i>Notif. Crítica ({{ $daysLeft === 0 ? 'Vence hoy' : '1d restante' }})
                                     </span>
                                 @elseif ($business->isExpiringSoon())
                                     <span class="badge bg-warning text-dark border border-warning">
-                                        <i class="bi bi-bell-fill me-1"></i>🔔 Notif. Preventiva ({{ $daysLeft }}d restantes)
+                                        <i class="bi bi-bell-fill me-1"></i>Notif. Preventiva ({{ $daysLeft }}d restantes)
                                     </span>
                                 @else
                                     <span class="badge bg-info bg-opacity-25 text-info-emphasis border border-info border-opacity-25">
-                                        <i class="bi bi-check-circle-fill me-1"></i>✅ Al día (Sin notif.)
+                                        <i class="bi bi-check-circle-fill me-1"></i>Al día (Sin notif.)
                                     </span>
                                 @endif
                             @endif

@@ -16,6 +16,6 @@ return [
     'failed' => 'These credentials do not match our records.',
     'password' => 'The provided password is incorrect.',
     'throttle' => 'Too many login attempts. Please try again in :seconds seconds.',
-    'active_session' => 'This account already has an active session on another device. For security reasons, please log out from the active device first.',
+    'active_session' => 'Esta cuenta ya tiene una sesión iniciada activa en otro dispositivo. Por seguridad, debes cerrar la sesión activa para poder ingresar aquí.',
 
 ];
