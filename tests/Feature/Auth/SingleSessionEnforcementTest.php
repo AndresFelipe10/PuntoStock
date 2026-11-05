@@ -133,5 +133,16 @@ class SingleSessionEnforcementTest extends TestCase
 
         $this->assertNull($this->user->fresh()->current_session_id);
     }
+
+    /**
+     * Test 5: Petición GET a /logout cierra sesión y redirige al login sin error.
+     */
+    public function test_get_request_to_logout_clears_session_and_redirects_to_login(): void
+    {
+        $response = $this->actingAs($this->user)->get(route('logout'));
+
+        $response->assertRedirect(route('login'));
+        $this->assertGuest();
+    }
 }
 

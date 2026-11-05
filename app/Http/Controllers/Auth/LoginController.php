@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -33,16 +34,23 @@ class LoginController extends Controller
 
         $user = $request->user();
 
-        // Control de Sesión Única (Anti-multisesión)
-        $sessionToken = (string) Str::uuid();
-        $request->session()->put('auth_session_token', $sessionToken);
-        $user->forceFill(['current_session_id' => $sessionToken])->saveQuietly();
+        // Control defensivo de Sesión Única (Anti-multisesión)
+        try {
+            $sessionToken = (string) Str::uuid();
+            $request->session()->put('auth_session_token', $sessionToken);
 
-        if (config('session.driver') === 'database' && Schema::hasTable('sessions')) {
-            DB::table('sessions')
-                ->where('user_id', $user->id)
-                ->where('id', '!=', $request->session()->getId())
-                ->delete();
+            if (Schema::hasColumn('users', 'current_session_id')) {
+                $user->forceFill(['current_session_id' => $sessionToken])->saveQuietly();
+            }
+
+            if (config('session.driver') === 'database' && Schema::hasTable('sessions')) {
+                DB::table('sessions')
+                    ->where('user_id', $user->id)
+                    ->where('id', '!=', $request->session()->getId())
+                    ->delete();
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo registrar token de sesión única en login: ' . $e->getMessage());
         }
 
         if ($user->is_superadmin) {
@@ -59,7 +67,14 @@ class LoginController extends Controller
         $businessIsActive = $membership && ($membership->status === 'active' && (bool) $membership->is_active);
 
         if (! $userIsActive || ! $membership || ! $businessIsActive) {
-            $user->forceFill(['current_session_id' => null])->saveQuietly();
+            try {
+                if (Schema::hasColumn('users', 'current_session_id')) {
+                    $user->forceFill(['current_session_id' => null])->saveQuietly();
+                }
+            } catch (\Throwable $e) {
+                // Silencioso ante rollback de cuenta inactiva
+            }
+
             Auth::guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
@@ -81,10 +96,16 @@ class LoginController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
-        $user = $request->user();
+        try {
+            $user = $request->user();
 
-        if ($user && $user->current_session_id === $request->session()->get('auth_session_token')) {
-            $user->forceFill(['current_session_id' => null])->saveQuietly();
+            if ($user && Schema::hasColumn('users', 'current_session_id')) {
+                if ($user->current_session_id === $request->session()->get('auth_session_token')) {
+                    $user->forceFill(['current_session_id' => null])->saveQuietly();
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo limpiar token de sesión única en logout: ' . $e->getMessage());
         }
 
         Auth::guard('web')->logout();

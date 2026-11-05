@@ -52,7 +52,7 @@ Route::middleware('guest')->group(function () {
 
 // Rutas protegidas por autenticación
 Route::middleware('auth')->group(function () {
-    Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
+    Route::match(['get', 'post'], '/logout', [LoginController::class, 'destroy'])->name('logout');
 
     // Cambio obligatorio de contraseña
     Route::get('/password/change', [ChangePasswordController::class, 'show'])->name('password.change');
