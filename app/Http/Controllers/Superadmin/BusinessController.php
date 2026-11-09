@@ -6,7 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Superadmin\StoreTenantUserRequest;
 use App\Mail\WelcomeTenantMail;
 use App\Models\Business;
+use App\Models\Category;
+use App\Models\Customer;
+use App\Models\Expense;
+use App\Models\InventoryMovement;
+use App\Models\Product;
+use App\Models\RestaurantOrder;
+use App\Models\RestaurantOrderItem;
+use App\Models\RestaurantTable;
 use App\Models\Role;
+use App\Models\Sale;
+use App\Models\SaleDetail;
+use App\Models\SalePayment;
+use App\Models\Supplier;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -15,7 +27,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class BusinessController extends Controller
@@ -468,5 +482,321 @@ class BusinessController extends Controller
 
         return redirect()->route('superadmin.businesses.users', $business)
             ->with('status', "Colaborador '{$user->name}' agregado exitosamente al negocio.");
+    }
+
+    /**
+     * Update an existing collaborator's details, role, or password.
+     */
+    public function updateUser(Request $request, Business $business, User $user): RedirectResponse
+    {
+        $membership = $business->users()->where('users.id', $user->id)->firstOrFail();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'min:2', 'max:80', "regex:/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s.'-]+$/u"],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'role' => ['required', 'string', 'in:admin,employee'],
+            'password' => ['nullable', 'string', 'min:8'],
+        ], [
+            'name.required' => 'El nombre completo del colaborador es obligatorio.',
+            'name.min' => 'El nombre del colaborador debe tener al menos 2 caracteres.',
+            'name.max' => 'El nombre no puede superar los 80 caracteres.',
+            'name.regex' => 'El nombre del colaborador solo debe contener letras, espacios, puntos o guiones.',
+            'email.required' => 'El correo electrónico es obligatorio.',
+            'email.email' => 'El formato del correo electrónico es inválido.',
+            'email.unique' => 'Ese correo ya está registrado en la plataforma.',
+            'role.required' => 'Debes seleccionar un rol para el colaborador.',
+            'role.in' => 'El rol seleccionado no es válido.',
+            'password.min' => 'La nueva contraseña temporal debe tener al menos 8 caracteres.',
+        ]);
+
+        $adminRole = Role::firstOrCreate(['slug' => Role::ROLE_ADMIN], ['name' => 'Administrador']);
+        $isCurrentlyAdmin = (int) $membership->pivot->role_id === (int) $adminRole->id;
+
+        if ($validated['role'] === 'employee' && $isCurrentlyAdmin) {
+            $activeAdminsCount = $business->users()
+                ->wherePivot('role_id', $adminRole->id)
+                ->wherePivot('is_active', true)
+                ->count();
+
+            if ($activeAdminsCount <= 1) {
+                return back()->withErrors(['role' => 'No es posible cambiar el rol del único administrador activo del negocio. Debes asignar otro administrador primero.']);
+            }
+        }
+
+        DB::transaction(function () use ($validated, $user, $business) {
+            $user->name = $validated['name'];
+            $user->email = strtolower($validated['email']);
+
+            $plainPassword = ! empty($validated['password']) ? $validated['password'] : null;
+            if ($plainPassword) {
+                $user->password = Hash::make($plainPassword);
+                $user->must_change_password = true;
+            }
+            $user->save();
+
+            $targetRoleSlug = $validated['role'] === 'admin' ? Role::ROLE_ADMIN : Role::ROLE_EMPLOYEE;
+            $targetRoleName = $validated['role'] === 'admin' ? 'Administrador' : 'Empleado';
+            $role = Role::firstOrCreate(['slug' => $targetRoleSlug], ['name' => $targetRoleName]);
+
+            $business->users()->updateExistingPivot($user->id, [
+                'role_id' => $role->id,
+            ]);
+
+            if ($plainPassword) {
+                try {
+                    Mail::to($user->email)->send(
+                        new WelcomeTenantMail($business, $user, $plainPassword, $validated['role'], false)
+                    );
+                } catch (\Throwable $e) {
+                    Log::error('Error enviando correo con nueva clave al colaborador', [
+                        'business_id' => $business->id,
+                        'user_id' => $user->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+                session()->flash('temp_password', $plainPassword);
+                session()->flash('created_user_email', $user->email);
+            }
+
+            Log::info("Colaborador #{$user->id} ({$user->email}) actualizado en negocio #{$business->id} ({$business->name}) por superadmin #" . auth()->id() . ".");
+        });
+
+        return back()->with('status', "Datos del colaborador '{$user->name}' actualizados correctamente.");
+    }
+
+    /**
+     * Wipe all operational transactions generated specifically by this user in the business.
+     */
+    public function wipeUser(Business $business, User $user): RedirectResponse
+    {
+        $business->users()->where('users.id', $user->id)->firstOrFail();
+
+        DB::transaction(function () use ($business, $user) {
+            $orderIds = RestaurantOrder::withoutGlobalScopes()
+                ->where('business_id', $business->id)
+                ->where('user_id', $user->id)
+                ->pluck('id');
+            RestaurantOrderItem::withoutGlobalScopes()->whereIn('order_id', $orderIds)->delete();
+            RestaurantOrder::withoutGlobalScopes()->whereIn('id', $orderIds)->delete();
+
+            $saleIds = Sale::withoutGlobalScopes()
+                ->where('business_id', $business->id)
+                ->where('user_id', $user->id)
+                ->pluck('id');
+            SalePayment::withoutGlobalScopes()->whereIn('sale_id', $saleIds)->delete();
+            SaleDetail::withoutGlobalScopes()->whereIn('sale_id', $saleIds)->delete();
+            Sale::withoutGlobalScopes()->whereIn('id', $saleIds)->delete();
+
+            InventoryMovement::withoutGlobalScopes()
+                ->where('business_id', $business->id)
+                ->where('user_id', $user->id)
+                ->delete();
+
+            Expense::withoutGlobalScopes()
+                ->where('business_id', $business->id)
+                ->where('created_by', $user->id)
+                ->forceDelete();
+
+            Log::warning("SuperAdmin #" . auth()->id() . " vació las operaciones del colaborador #{$user->id} ({$user->name}) en negocio #{$business->id} ({$business->name}).");
+        });
+
+        return back()->with('status', "Operaciones del colaborador '{$user->name}' vaciadas exitosamente.");
+    }
+
+    /**
+     * Remove collaborator from the business, purging user account if it has no other businesses.
+     */
+    public function destroyUser(Business $business, User $user): RedirectResponse
+    {
+        $membership = $business->users()->where('users.id', $user->id)->firstOrFail();
+
+        $adminRole = Role::firstOrCreate(['slug' => Role::ROLE_ADMIN], ['name' => 'Administrador']);
+        $isAdmin = (int) $membership->pivot->role_id === (int) $adminRole->id;
+
+        if ($isAdmin) {
+            $activeAdminsCount = $business->users()
+                ->wherePivot('role_id', $adminRole->id)
+                ->wherePivot('is_active', true)
+                ->count();
+
+            if ($activeAdminsCount <= 1) {
+                return back()->withErrors(['error' => 'No es posible eliminar al único administrador activo del negocio. Debes asignar otro administrador primero o eliminar el negocio completo.']);
+            }
+        }
+
+        $userName = $user->name;
+        $superadminId = auth()->id();
+
+        DB::transaction(function () use ($business, $user, $superadminId) {
+            $orderIds = RestaurantOrder::withoutGlobalScopes()
+                ->where('business_id', $business->id)
+                ->where('user_id', $user->id)
+                ->pluck('id');
+            RestaurantOrderItem::withoutGlobalScopes()->whereIn('order_id', $orderIds)->delete();
+            RestaurantOrder::withoutGlobalScopes()->whereIn('id', $orderIds)->delete();
+
+            $saleIds = Sale::withoutGlobalScopes()
+                ->where('business_id', $business->id)
+                ->where('user_id', $user->id)
+                ->pluck('id');
+            SalePayment::withoutGlobalScopes()->whereIn('sale_id', $saleIds)->delete();
+            SaleDetail::withoutGlobalScopes()->whereIn('sale_id', $saleIds)->delete();
+            Sale::withoutGlobalScopes()->whereIn('id', $saleIds)->delete();
+
+            InventoryMovement::withoutGlobalScopes()
+                ->where('business_id', $business->id)
+                ->where('user_id', $user->id)
+                ->delete();
+
+            Expense::withoutGlobalScopes()
+                ->where('business_id', $business->id)
+                ->where('created_by', $user->id)
+                ->forceDelete();
+
+            $business->users()->detach($user->id);
+
+            if (! $user->is_superadmin && $user->businesses()->count() === 0) {
+                if (Schema::hasTable('sessions')) {
+                    DB::table('sessions')->where('user_id', $user->id)->delete();
+                }
+                $user->delete();
+                Log::warning("SuperAdmin #{$superadminId} eliminó definitivamente al colaborador #{$user->id} ({$user->email}) del sistema.");
+            } else {
+                Log::warning("SuperAdmin #{$superadminId} desvinculó al colaborador #{$user->id} ({$user->email}) del negocio #{$business->id} ({$business->name}).");
+            }
+        });
+
+        return back()->with('status', "Colaborador '{$userName}' eliminado exitosamente.");
+    }
+
+    /**
+     * Reset business operational transactions or full catalog and operational data.
+     */
+    public function resetData(Request $request, Business $business): RedirectResponse
+    {
+        $request->validate([
+            'mode' => ['required', 'string', 'in:operational,full_catalog'],
+            'confirmation_name' => ['required', 'string'],
+            'reset_stock' => ['nullable', 'boolean'],
+        ], [
+            'mode.required' => 'Debes seleccionar el tipo de vaciado.',
+            'mode.in' => 'El modo de vaciado seleccionado no es válido.',
+            'confirmation_name.required' => 'Debes ingresar el nombre del negocio para confirmar.',
+        ]);
+
+        if (trim((string) $request->input('confirmation_name')) !== $business->name) {
+            return back()->withErrors(['confirmation_name' => 'El nombre ingresado no coincide con el nombre del negocio.']);
+        }
+
+        $businessId = $business->id;
+        $mode = $request->input('mode');
+        $resetStock = $request->boolean('reset_stock');
+        $superadminId = auth()->id();
+
+        DB::transaction(function () use ($businessId, $mode, $resetStock, $superadminId, $business) {
+            // 1. Líneas de comanda y comandas
+            RestaurantOrderItem::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+            RestaurantOrder::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+
+            // 2. Pagos, detalles y ventas
+            SalePayment::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+            $saleIds = Sale::withoutGlobalScopes()->where('business_id', $businessId)->pluck('id');
+            SaleDetail::withoutGlobalScopes()->whereIn('sale_id', $saleIds)->delete();
+            Sale::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+
+            // 3. Movimientos de inventario y gastos
+            InventoryMovement::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+            Expense::withoutGlobalScopes()->where('business_id', $businessId)->forceDelete();
+
+            if ($mode === 'full_catalog') {
+                RestaurantTable::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+                Product::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+                Category::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+                Customer::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+                Supplier::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+            } else {
+                RestaurantTable::withoutGlobalScopes()->where('business_id', $businessId)->update(['status' => 'available']);
+                if ($resetStock) {
+                    Product::withoutGlobalScopes()->where('business_id', $businessId)->update(['stock' => 0]);
+                }
+            }
+
+            Log::warning("SuperAdmin #{$superadminId} ejecutó vaciado ({$mode}) en el negocio #{$businessId} ({$business->name}).");
+        });
+
+        $msg = $mode === 'full_catalog'
+            ? "Vaciado total completado para '{$business->name}'. Catálogo y operaciones reseteados."
+            : "Reset operativo completado para '{$business->name}'. Ventas y comanda puestas a cero.";
+
+        return redirect()->route('superadmin.businesses.index')->with('status', $msg);
+    }
+
+    /**
+     * Permanently delete a business and purge all its associated records and orphan users.
+     */
+    public function destroy(Request $request, Business $business): RedirectResponse
+    {
+        $request->validate([
+            'confirmation_name' => ['required', 'string'],
+        ], [
+            'confirmation_name.required' => 'Debes escribir el nombre exacto del negocio para confirmar la eliminación.',
+        ]);
+
+        if (trim((string) $request->input('confirmation_name')) !== $business->name) {
+            return back()->withErrors(['confirmation_name' => 'El nombre ingresado no coincide con el nombre del negocio.']);
+        }
+
+        $businessId = $business->id;
+        $businessName = $business->name;
+        $superadminId = auth()->id();
+
+        DB::transaction(function () use ($business, $businessId, $businessName, $superadminId, $request) {
+            $userIds = $business->users()->pluck('users.id')->toArray();
+
+            RestaurantOrderItem::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+            RestaurantOrder::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+
+            SalePayment::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+            $saleIds = Sale::withoutGlobalScopes()->where('business_id', $businessId)->pluck('id');
+            SaleDetail::withoutGlobalScopes()->whereIn('sale_id', $saleIds)->delete();
+            Sale::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+
+            InventoryMovement::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+            Expense::withoutGlobalScopes()->where('business_id', $businessId)->forceDelete();
+
+            RestaurantTable::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+            Product::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+            Category::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+            Customer::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+            Supplier::withoutGlobalScopes()->where('business_id', $businessId)->delete();
+
+            $business->users()->detach();
+            $business->delete();
+
+            $purgedUsersCount = 0;
+            foreach ($userIds as $uid) {
+                $u = User::find($uid);
+                if ($u && ! $u->is_superadmin) {
+                    if ($u->businesses()->count() === 0) {
+                        if (Schema::hasTable('sessions')) {
+                            DB::table('sessions')->where('user_id', $u->id)->delete();
+                        }
+                        $u->delete();
+                        $purgedUsersCount++;
+                    }
+                }
+            }
+
+            Log::warning("SuperAdmin #{$superadminId} eliminó definitivamente el negocio #{$businessId} ({$businessName}) y purgó {$purgedUsersCount} usuario(s) huérfano(s).", [
+                'business_id' => $businessId,
+                'business_name' => $businessName,
+                'purged_users' => $purgedUsersCount,
+                'superadmin_id' => $superadminId,
+                'ip' => $request->ip(),
+            ]);
+        });
+
+        return redirect()->route('superadmin.businesses.index')
+            ->with('status', "Negocio '{$businessName}' y sus dependencias eliminados definitivamente.");
     }
 }

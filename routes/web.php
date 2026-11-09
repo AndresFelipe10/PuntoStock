@@ -68,12 +68,17 @@ Route::middleware('auth')->group(function () {
         Route::post('/businesses', [SuperadminBusinessController::class, 'store'])->name('businesses.store');
         Route::get('/businesses/{business}/edit', [SuperadminBusinessController::class, 'edit'])->name('businesses.edit');
         Route::put('/businesses/{business}', [SuperadminBusinessController::class, 'update'])->name('businesses.update');
+        Route::delete('/businesses/{business}', [SuperadminBusinessController::class, 'destroy'])->name('businesses.destroy');
+        Route::post('/businesses/{business}/reset', [SuperadminBusinessController::class, 'resetData'])->name('businesses.reset');
         Route::post('/businesses/{business}/toggle-status', [SuperadminBusinessController::class, 'toggleStatus'])->name('businesses.toggleStatus');
         Route::post('/businesses/{business}/reset-password', [SuperadminBusinessController::class, 'resetAdminPassword'])->name('businesses.resetPassword');
         Route::post('/businesses/{business}/renew-subscription', [SuperadminBusinessController::class, 'renewSubscription'])->name('businesses.renewSubscription');
         Route::get('/businesses/{business}/users', [SuperadminBusinessController::class, 'users'])->name('businesses.users');
         Route::get('/businesses/{business}/users/create', [SuperadminBusinessController::class, 'createUser'])->name('businesses.users.create');
         Route::post('/businesses/{business}/users', [SuperadminBusinessController::class, 'storeUser'])->name('businesses.users.store');
+        Route::put('/businesses/{business}/users/{user}', [SuperadminBusinessController::class, 'updateUser'])->name('businesses.users.update');
+        Route::post('/businesses/{business}/users/{user}/wipe', [SuperadminBusinessController::class, 'wipeUser'])->name('businesses.users.wipe');
+        Route::delete('/businesses/{business}/users/{user}', [SuperadminBusinessController::class, 'destroyUser'])->name('businesses.users.destroy');
         Route::post('/businesses/{business}/users/{user}/toggle-status', [SuperadminBusinessController::class, 'toggleUserStatus'])->name('businesses.toggleUserStatus');
     });
 

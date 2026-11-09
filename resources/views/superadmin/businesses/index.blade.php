@@ -14,6 +14,23 @@
     </a>
 </div>
 
+@if ($errors->any())
+    <div class="alert alert-danger alert-dismissible fade show mb-4 d-flex align-items-center justify-content-between" role="alert">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-exclamation-octagon-fill me-2 fs-5"></i>
+            <div>
+                <strong class="d-block">Se encontraron los siguientes problemas:</strong>
+                <ul class="mb-0 ps-3 small">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
 <div class="card card-dark border-secondary border-opacity-25 rounded-3 p-3 mb-4 shadow-sm">
     <form method="GET" action="{{ route('superadmin.businesses.index') }}" class="row g-2 align-items-end">
         <div class="col-12 col-md-5 col-lg-5">
@@ -54,7 +71,7 @@
                     <th style="min-width: 150px;">Administrador</th>
                     <th style="min-width: 180px;">Vencimiento Mensualidad</th>
                     <th style="min-width: 110px;">Estado</th>
-                    <th class="text-end" style="min-width: 200px;">Acciones</th>
+                    <th class="text-end" style="min-width: 260px;">Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -178,6 +195,15 @@
                                         data-business-name="{{ $biz->name }}">
                                     <i class="bi bi-key"></i>
                                 </button>
+                                <button type="button"
+                                        class="btn btn-outline-warning btn-action-table btn-reset-biz-data"
+                                        title="Vaciar / Resetear operaciones del negocio"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#resetBusinessModal"
+                                        data-action-url="{{ route('superadmin.businesses.reset', $biz) }}"
+                                        data-business-name="{{ $biz->name }}">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
                                 @if ($biz->status === 'active')
                                     <button type="button" 
                                             class="btn btn-outline-danger btn-action-table btn-toggle-biz-status" 
@@ -201,6 +227,15 @@
                                         <i class="bi bi-play-fill"></i>
                                     </button>
                                 @endif
+                                <button type="button"
+                                        class="btn btn-outline-danger btn-action-table btn-delete-biz-permanent"
+                                        title="Eliminar negocio definitivamente"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#deleteBusinessModal"
+                                        data-action-url="{{ route('superadmin.businesses.destroy', $biz) }}"
+                                        data-business-name="{{ $biz->name }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -325,6 +360,120 @@
         </div>
     </div>
 </div>
+
+{{-- Modal Superadmin: Vaciar / Resetear Negocio --}}
+<div class="modal fade" id="resetBusinessModal" tabindex="-1" aria-labelledby="resetBusinessModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content card-dark border-secondary border-opacity-50 shadow rounded-4 overflow-hidden text-light">
+            <div class="modal-header py-3 bg-warning text-dark">
+                <h5 class="modal-title fw-bold d-flex align-items-center" id="resetBusinessModalLabel">
+                    <i class="bi bi-arrow-counterclockwise me-2 fs-5"></i> Vaciar / Resetear Negocio
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <form action="" method="POST" id="resetBusinessForm">
+                @csrf
+                <div class="modal-body p-4">
+                    <p class="text-light mb-3">
+                        Estás a punto de resetear la información de <strong id="resetModalBizName" class="text-warning">-</strong>.
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label text-white small fw-bold">Selecciona el alcance del vaciado:</label>
+                        <div class="form-check p-3 rounded border border-secondary border-opacity-25 bg-black bg-opacity-25 mb-2">
+                            <input class="form-check-input" type="radio" name="mode" id="resetModeOperational" value="operational" checked>
+                            <label class="form-check-label text-white fw-semibold" for="resetModeOperational">
+                                Reset Operativo (Recomendado para pruebas o nuevo período)
+                            </label>
+                            <div class="small text-secondary mt-1">
+                                Borra ventas, pagos, detalles, comandas, movimientos de inventario y gastos. Conserva productos, categorías, mesas, clientes y usuarios.
+                            </div>
+                        </div>
+                        <div class="form-check p-3 rounded border border-secondary border-opacity-25 bg-black bg-opacity-25">
+                            <input class="form-check-input" type="radio" name="mode" id="resetModeFull" value="full_catalog">
+                            <label class="form-check-label text-white fw-semibold" for="resetModeFull">
+                                Vaciado Total (Operaciones + Catálogo)
+                            </label>
+                            <div class="small text-secondary mt-1">
+                                Borra operaciones y todo el catálogo (productos, categorías, mesas, clientes y proveedores). Conserva únicamente la empresa y sus colaboradores.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-check mb-3" id="resetStockWrapper">
+                        <input class="form-check-input" type="checkbox" name="reset_stock" id="resetStockCheckbox" value="1">
+                        <label class="form-check-label text-light small" for="resetStockCheckbox">
+                            Poner en 0 el stock actual de todos los productos (aplica solo en Reset Operativo)
+                        </label>
+                    </div>
+
+                    <div class="alert alert-warning bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded-3 p-3 mb-3">
+                        <div class="small text-light">
+                            Para confirmar, escribe exactamente el nombre del negocio: <strong id="resetTargetBizName" class="text-warning user-select-all">-</strong>
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="resetConfirmationInput" name="confirmation_name" placeholder="Escribe el nombre del negocio aquí..." autocomplete="off" required>
+                    </div>
+                </div>
+                <div class="modal-footer bg-dark border-top border-secondary border-opacity-25 px-4 py-3 d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-semibold" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold text-dark" id="btnConfirmResetBiz" disabled>
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Confirmar Vaciado
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- Modal Superadmin: Eliminar Negocio Definitivamente --}}
+<div class="modal fade" id="deleteBusinessModal" tabindex="-1" aria-labelledby="deleteBusinessModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content card-dark border-secondary border-opacity-50 shadow rounded-4 overflow-hidden text-light">
+            <div class="modal-header py-3 bg-danger text-white">
+                <h5 class="modal-title fw-bold d-flex align-items-center" id="deleteBusinessModalLabel">
+                    <i class="bi bi-trash-fill me-2 fs-5"></i> Eliminar Negocio Definitivamente
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <form action="" method="POST" id="deleteBusinessForm">
+                @csrf
+                @method('DELETE')
+                <div class="modal-body p-4">
+                    <div class="alert alert-danger bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded-3 p-3 mb-3">
+                        <i class="bi bi-exclamation-octagon-fill text-danger fs-4 mb-2 d-block"></i>
+                        <div class="fw-bold text-white mb-1">¡ADVERTENCIA DE ACCIÓN DESTRUCTIVA!</div>
+                        <div class="small text-light">
+                            Estás a punto de purgar definitivamente el comercio <strong id="deleteModalBizName" class="text-danger">-</strong>. Se eliminarán permanentemente todas las ventas, comandas, productos, categorías, mesas, gastos, configuraciones y el negocio mismo.
+                        </div>
+                        <div class="small text-light mt-2">
+                            Los administradores o colaboradores que solo pertenecían a este negocio serán eliminados y sus correos electrónicos quedarán liberados.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-white small fw-bold">
+                            Para proceder, escribe exactamente el nombre del negocio: <strong id="deleteTargetBizName" class="text-danger user-select-all">-</strong>
+                        </label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="deleteConfirmationInput" name="confirmation_name" placeholder="Escribe el nombre del negocio aquí..." autocomplete="off" required>
+                    </div>
+                </div>
+                <div class="modal-footer bg-dark border-top border-secondary border-opacity-25 px-4 py-3 d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-semibold" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold" id="btnConfirmDeleteBiz" disabled>
+                        <i class="bi bi-trash me-1"></i> Eliminar Permanentemente
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -356,6 +505,66 @@ document.addEventListener('DOMContentLoaded', function () {
             if (form) form.action = actionUrl;
             if (nameEl) nameEl.textContent = bizName;
         });
+    }
+
+    // Modal Reset / Vaciar Negocio
+    const resetModal = document.getElementById('resetBusinessModal');
+    if (resetModal) {
+        let targetName = '';
+        const form = document.getElementById('resetBusinessForm');
+        const modalNameEl = document.getElementById('resetModalBizName');
+        const targetNameEl = document.getElementById('resetTargetBizName');
+        const inputEl = document.getElementById('resetConfirmationInput');
+        const confirmBtn = document.getElementById('btnConfirmResetBiz');
+
+        resetModal.addEventListener('show.bs.modal', function (event) {
+            const btn = event.relatedTarget;
+            if (!btn) return;
+            const actionUrl = btn.getAttribute('data-action-url') || '';
+            targetName = btn.getAttribute('data-business-name') || '';
+
+            if (form) form.action = actionUrl;
+            if (modalNameEl) modalNameEl.textContent = targetName;
+            if (targetNameEl) targetNameEl.textContent = targetName;
+            if (inputEl) inputEl.value = '';
+            if (confirmBtn) confirmBtn.disabled = true;
+        });
+
+        if (inputEl && confirmBtn) {
+            inputEl.addEventListener('input', function () {
+                confirmBtn.disabled = inputEl.value.trim() !== targetName.trim();
+            });
+        }
+    }
+
+    // Modal Eliminar Negocio Definitivamente
+    const deleteModal = document.getElementById('deleteBusinessModal');
+    if (deleteModal) {
+        let targetName = '';
+        const form = document.getElementById('deleteBusinessForm');
+        const modalNameEl = document.getElementById('deleteModalBizName');
+        const targetNameEl = document.getElementById('deleteTargetBizName');
+        const inputEl = document.getElementById('deleteConfirmationInput');
+        const confirmBtn = document.getElementById('btnConfirmDeleteBiz');
+
+        deleteModal.addEventListener('show.bs.modal', function (event) {
+            const btn = event.relatedTarget;
+            if (!btn) return;
+            const actionUrl = btn.getAttribute('data-action-url') || '';
+            targetName = btn.getAttribute('data-business-name') || '';
+
+            if (form) form.action = actionUrl;
+            if (modalNameEl) modalNameEl.textContent = targetName;
+            if (targetNameEl) targetNameEl.textContent = targetName;
+            if (inputEl) inputEl.value = '';
+            if (confirmBtn) confirmBtn.disabled = true;
+        });
+
+        if (inputEl && confirmBtn) {
+            inputEl.addEventListener('input', function () {
+                confirmBtn.disabled = inputEl.value.trim() !== targetName.trim();
+            });
+        }
     }
 
     const modalEl = document.getElementById('toggleBusinessStatusModal');
