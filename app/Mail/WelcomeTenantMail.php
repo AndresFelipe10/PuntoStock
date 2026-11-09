@@ -24,7 +24,7 @@ class WelcomeTenantMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: "¡Bienvenido a PuntoStock POS! Credenciales de acceso para {$this->business->name}",
+            subject: "Bienvenido a PuntoStock POS — Credenciales de acceso para {$this->business->name}",
         );
     }
 

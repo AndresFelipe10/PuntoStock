@@ -211,20 +211,25 @@
                 {{-- Botonera de Consultas Rápidas (Quick Chips) en Móvil y Escritorio --}}
                 <div class="quick-chips-wrapper mb-2 px-1">
                     <div class="d-flex flex-nowrap gap-2 overflow-x-auto pb-1" style="scrollbar-width: none; -ms-overflow-style: none;">
-                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0" data-query="Ventas de hoy vs ayer" style="font-size: 0.85rem; min-height: 38px;">
-                            📊 Ventas de hoy vs ayer
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0 d-inline-flex align-items-center" data-query="Ventas de hoy vs ayer" style="font-size: 0.85rem; min-height: 38px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-1 flex-shrink-0" style="pointer-events: none;"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>
+                            <span>Ventas de hoy vs ayer</span>
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0" data-query="¿Cuánto vendimos en el turno de la tarde comparado con la semana pasada?" style="font-size: 0.85rem; min-height: 38px;">
-                            🕒 Turno tarde vs semana pasada
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0 d-inline-flex align-items-center" data-query="¿Cuánto vendimos en el turno de la tarde comparado con la semana pasada?" style="font-size: 0.85rem; min-height: 38px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-1 flex-shrink-0" style="pointer-events: none;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                            <span>Turno tarde vs semana pasada</span>
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0" data-query="{{ $business && $business->isRestaurant() ? '¿Cuáles son los 3 platos con menor margen de ganancia?' : '¿Cuáles son los 3 productos con menor margen de ganancia?' }}" style="font-size: 0.85rem; min-height: 38px;">
-                            📉 {{ $business && $business->isRestaurant() ? '3 platos con menor margen' : '3 productos con menor margen' }}
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0 d-inline-flex align-items-center" data-query="{{ $business && $business->isRestaurant() ? '¿Cuáles son los 3 platos con menor margen de ganancia?' : '¿Cuáles son los 3 productos con menor margen de ganancia?' }}" style="font-size: 0.85rem; min-height: 38px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-1 flex-shrink-0" style="pointer-events: none;"><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="16" x2="16" y1="14" y2="18"></line><path d="M16 10h.01"></path><path d="M12 10h.01"></path><path d="M8 10h.01"></path><path d="M12 14h.01"></path><path d="M8 14h.01"></path><path d="M12 18h.01"></path><path d="M8 18h.01"></path></svg>
+                            <span>{{ $business && $business->isRestaurant() ? '3 platos con menor margen' : '3 productos con menor margen' }}</span>
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0" data-query="¿Qué productos tienen bajo stock o requieren reposición?" style="font-size: 0.85rem; min-height: 38px;">
-                            ⚠️ Stock crítico para proveedor
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0 d-inline-flex align-items-center" data-query="¿Qué productos tienen bajo stock o requieren reposición?" style="font-size: 0.85rem; min-height: 38px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-1 flex-shrink-0" style="pointer-events: none;"><path d="m7.5 4.27 9 5.15"></path><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg>
+                            <span>Stock crítico para proveedor</span>
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0" data-query="¿Cuáles son los 5 productos más vendidos?" style="font-size: 0.85rem; min-height: 38px;">
-                            🏆 Top 5 más vendidos
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0 d-inline-flex align-items-center" data-query="¿Cuáles son los 5 productos más vendidos?" style="font-size: 0.85rem; min-height: 38px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-1 flex-shrink-0" style="pointer-events: none;"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+                            <span>Top 5 más vendidos</span>
                         </button>
                     </div>
                 </div>

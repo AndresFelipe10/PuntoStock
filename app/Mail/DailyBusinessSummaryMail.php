@@ -25,7 +25,7 @@ class DailyBusinessSummaryMail extends Mailable
         $dateFormatted = $this->summary['date_formatted'] ?? now()->format('d/m/Y');
 
         return new Envelope(
-            subject: "📊 Resumen Operativo Diario - {$businessName} ({$dateFormatted})",
+            subject: "Resumen Operativo Diario — {$businessName} ({$dateFormatted})",
         );
     }
 
