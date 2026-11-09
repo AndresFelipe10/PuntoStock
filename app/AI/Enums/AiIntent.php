@@ -19,6 +19,8 @@ class AiIntent
     public const RESTAURANT_ORDERS_OPEN = 'restaurant_orders_open';
     public const RESTAURANT_DELIVERIES_TODAY = 'restaurant_deliveries_today';
     public const RESTAURANT_TIPS_COLLECTED = 'restaurant_tips_collected';
+    public const SALES_COMPARISON = 'sales_comparison';
+    public const PRODUCT_MARGINS = 'product_margins';
 
     /**
      * Complete immutable whitelist of authorized intents.
@@ -39,6 +41,8 @@ class AiIntent
         self::RESTAURANT_ORDERS_OPEN,
         self::RESTAURANT_DELIVERIES_TODAY,
         self::RESTAURANT_TIPS_COLLECTED,
+        self::SALES_COMPARISON,
+        self::PRODUCT_MARGINS,
     ];
 
     /**
@@ -189,6 +193,48 @@ class AiIntent
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => (object)[],
+                ],
+            ],
+            [
+                'name' => self::SALES_COMPARISON,
+                'description' => 'Comparar ventas entre franjas horarias (turnos mañana, tarde, noche) o períodos relativos (hoy vs ayer, este mes vs mes pasado, turno tarde vs martes pasado).',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'shift' => [
+                            'type' => 'STRING',
+                            'description' => 'Turno o franja horaria: "morning" (06:00-11:59), "afternoon" (12:00-17:59), "night" (18:00-23:59), o "all" para día completo',
+                        ],
+                        'target_date' => [
+                            'type' => 'STRING',
+                            'description' => 'Fecha o período actual de evaluación: "today", "this_week", "this_month", o fecha YYYY-MM-DD',
+                        ],
+                        'compare_to' => [
+                            'type' => 'STRING',
+                            'description' => 'Período o fecha de comparación: "yesterday", "last_week", "last_month", "previous_tuesday", o fecha YYYY-MM-DD',
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'name' => self::PRODUCT_MARGINS,
+                'description' => 'Consultar la rentabilidad o margen de ganancia de productos o platos (unitario en $ y porcentual %), ordenados por menor o mayor margen con límite específico.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'order' => [
+                            'type' => 'STRING',
+                            'description' => 'Orden de rentabilidad: "asc" para menor margen / menos rentables, "desc" para mayor margen / más rentables',
+                        ],
+                        'limit' => [
+                            'type' => 'INTEGER',
+                            'description' => 'Cantidad exacta de productos a listar (por ejemplo 3 o 5)',
+                        ],
+                        'product_type' => [
+                            'type' => 'STRING',
+                            'description' => 'Filtrar por tipo: "dish" para platos de restaurante, o dejar vacío para todos',
+                        ],
+                    ],
                 ],
             ],
         ];

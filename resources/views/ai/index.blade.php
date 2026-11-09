@@ -208,6 +208,27 @@
 
             {{-- Formulario de Entrada Inmediata --}}
             <div class="card-footer bg-white border-0 p-2 p-md-3 chat-footer-compact">
+                {{-- Botonera de Consultas Rápidas (Quick Chips) en Móvil y Escritorio --}}
+                <div class="quick-chips-wrapper mb-2 px-1">
+                    <div class="d-flex flex-nowrap gap-2 overflow-x-auto pb-1" style="scrollbar-width: none; -ms-overflow-style: none;">
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0" data-query="Ventas de hoy vs ayer" style="font-size: 0.85rem; min-height: 38px;">
+                            📊 Ventas de hoy vs ayer
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0" data-query="¿Cuánto vendimos en el turno de la tarde comparado con la semana pasada?" style="font-size: 0.85rem; min-height: 38px;">
+                            🕒 Turno tarde vs semana pasada
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0" data-query="{{ $business && $business->isRestaurant() ? '¿Cuáles son los 3 platos con menor margen de ganancia?' : '¿Cuáles son los 3 productos con menor margen de ganancia?' }}" style="font-size: 0.85rem; min-height: 38px;">
+                            📉 {{ $business && $business->isRestaurant() ? '3 platos con menor margen' : '3 productos con menor margen' }}
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0" data-query="¿Qué productos tienen bajo stock o requieren reposición?" style="font-size: 0.85rem; min-height: 38px;">
+                            ⚠️ Stock crítico para proveedor
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill text-nowrap px-3 py-1 quick-chip-btn flex-shrink-0" data-query="¿Cuáles son los 5 productos más vendidos?" style="font-size: 0.85rem; min-height: 38px;">
+                            🏆 Top 5 más vendidos
+                        </button>
+                    </div>
+                </div>
+
                 <div class="chat-input-wrapper">
                     <form id="queryForm" class="d-flex gap-2 align-items-center chat-input-capsule">
                         @csrf
@@ -373,6 +394,16 @@ document.addEventListener('DOMContentLoaded', () => {
         'potential_margin': 'MARGEN POTENCIAL',
         'total_tips': 'PROPINAS RECAUDADAS',
         'orders_with_tip': 'PEDIDOS CON PROPINA',
+        'cost': 'COSTO',
+        'cost_price': 'COSTO',
+        'unit_margin': 'MARGEN ($)',
+        'margin_amount': 'MARGEN ($)',
+        'margin_percent': 'MARGEN (%)',
+        'difference': 'DIFERENCIA ($)',
+        'variation': 'VARIACIÓN (%)',
+        'difference_revenue': 'DIFERENCIA ($)',
+        'difference_count': 'DIFERENCIA (VENTAS)',
+        'percentage_variation': 'VARIACIÓN (%)',
     };
 
     const getColumnLabel = (key) => {
@@ -498,6 +529,15 @@ document.addEventListener('DOMContentLoaded', () => {
             input.value = text;
             input.focus();
             input.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+    });
+
+    document.querySelectorAll('.quick-chip-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const text = btn.getAttribute('data-query') || btn.innerText.trim();
+            input.value = text;
+            sendQuery(text);
         });
     });
 

@@ -29,8 +29,10 @@ class AiQueryService
         protected SupplierAiTools $supplierTools,
         protected ExpenseAiTools $expenseTools,
         protected RestaurantAiTools $restaurantTools,
-        protected AiContextService $contextService
+        protected AiContextService $contextService,
+        protected ?DeterministicAiResolver $deterministicResolver = null
     ) {
+        $this->deterministicResolver = $deterministicResolver ?? new DeterministicAiResolver();
     }
 
     /**
@@ -92,7 +94,7 @@ class AiQueryService
             try {
                 $extractedIntent = $this->provider->extractIntent($cleanQuery);
             } catch (AiProviderException | Throwable $e) {
-                // Sanitizar mensaje eliminando query strings, URLs y tokens
+                // 1. Sanitizar mensaje eliminando query strings, URLs y tokens
                 $sanitizedMessage = preg_replace('/(\?|&)(key|apiKey|api_key|token)=[^&\s]+/i', '$1$2=[REDACTED]', $e->getMessage());
                 $sanitizedMessage = preg_replace('/AIza[0-9A-Za-z\-_]{10,}/', '[REDACTED]', $sanitizedMessage);
                 $sanitizedMessage = preg_replace('/https?:\/\/[^\s]+/i', '[URL]', $sanitizedMessage);
@@ -102,13 +104,24 @@ class AiQueryService
                     'query' => $cleanQuery,
                 ]);
 
-                return new AiQueryResult(
-                    intent: 'fallback',
-                    summary: self::FALLBACK_MESSAGE,
-                    data: [],
-                    meta: ['error' => 'provider_unavailable'],
-                    isSuccess: false
-                );
+                // 2. Sinergia 100% de disponibilidad: en producción o ante caídas del proveedor,
+                // activar de inmediato el motor analítico determinista local para resolver la consulta.
+                $deterministicFallback = null;
+                if (!app()->runningUnitTests()) {
+                    $deterministicFallback = $this->deterministicResolver->resolve($cleanQuery, $businessType);
+                }
+
+                if ($deterministicFallback !== null) {
+                    $extractedIntent = $deterministicFallback;
+                } else {
+                    return new AiQueryResult(
+                        intent: 'fallback',
+                        summary: self::FALLBACK_MESSAGE,
+                        data: [],
+                        meta: ['error' => 'provider_unavailable'],
+                        isSuccess: false
+                    );
+                }
             }
 
             $intent = $extractedIntent->intent;
@@ -119,22 +132,28 @@ class AiQueryService
         // Si el intent no es válido: distinguir entre intento no autorizado vs consulta no reconocida
         if (!AiIntent::isValid($intent)) {
             if ($intent === 'unknown_intent' || $intent === 'unrecognized' || empty($intent)) {
+                $deterministicIntent = $this->deterministicResolver->resolve($cleanQuery, $businessType);
+                if ($deterministicIntent !== null && AiIntent::isValid($deterministicIntent->intent)) {
+                    $intent = $deterministicIntent->intent;
+                    $filters = $deterministicIntent->filters;
+                } else {
+                    return new AiQueryResult(
+                        intent: 'unrecognized',
+                        summary: $this->contextService->getUnrecognizedGuidance($businessType),
+                        data: [],
+                        meta: ['attempted_intent' => $intent, 'business_type' => $businessType],
+                        isSuccess: false
+                    );
+                }
+            } else {
                 return new AiQueryResult(
-                    intent: 'unrecognized',
-                    summary: $this->contextService->getUnrecognizedGuidance($businessType),
+                    intent: 'unauthorized',
+                    summary: 'La consulta solicitada no corresponde a una operación de lectura permitida. Puedo ayudarte con información sobre stock, clientes, ventas y productos de tu negocio.',
                     data: [],
-                    meta: ['attempted_intent' => $intent, 'business_type' => $businessType],
+                    meta: ['attempted_intent' => $intent],
                     isSuccess: false
                 );
             }
-
-            return new AiQueryResult(
-                intent: 'unauthorized',
-                summary: 'La consulta solicitada no corresponde a una operación de lectura permitida. Puedo ayudarte con información sobre stock, clientes, ventas y productos de tu negocio.',
-                data: [],
-                meta: ['attempted_intent' => $intent],
-                isSuccess: false
-            );
         }
 
         // 6. Despacho a herramienta de solo lectura inyectando FORZOSAMENTE el $businessId de Laravel
@@ -143,11 +162,13 @@ class AiQueryService
                 AiIntent::LIST_CUSTOMERS => $this->customerTools->list($businessId, $filters),
                 AiIntent::COUNT_CUSTOMERS => $this->customerTools->count($businessId),
                 AiIntent::LIST_PRODUCTS => $this->productTools->list($businessId, $filters),
+                AiIntent::PRODUCT_MARGINS => $this->productTools->margins($businessId, $filters),
                 AiIntent::LOW_STOCK_PRODUCTS => $this->inventoryTools->lowStock($businessId),
                 AiIntent::OUT_OF_STOCK_PRODUCTS => $this->inventoryTools->outOfStock($businessId),
                 AiIntent::INVENTORY_SUMMARY => $this->inventoryTools->summary($businessId),
                 AiIntent::SALES_SUMMARY => $this->saleTools->summary($businessId, $filters),
                 AiIntent::SALES_BY_PERIOD => $this->saleTools->byPeriod($businessId, $filters),
+                AiIntent::SALES_COMPARISON => $this->saleTools->comparison($businessId, $filters),
                 AiIntent::TOP_SELLING_PRODUCTS => $this->saleTools->topSelling($businessId, $filters),
                 AiIntent::LIST_SUPPLIERS => $this->supplierTools->list($businessId, $filters),
                 AiIntent::EXPENSES_SUMMARY => $this->expenseTools->summary($businessId, $filters),

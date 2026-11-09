@@ -22,8 +22,10 @@ class Product extends Model
         'name',
         'description',
         'sku',
+        'cost',
         'cost_price',
         'purchase_price',
+        'price',
         'sale_price',
         'stock',
         'min_stock',
@@ -49,6 +51,26 @@ class Product extends Model
     public function setPurchasePriceAttribute($value): void
     {
         $this->attributes['cost_price'] = $value;
+    }
+
+    public function getCostAttribute(): ?float
+    {
+        return $this->cost_price !== null ? (float) $this->cost_price : null;
+    }
+
+    public function setCostAttribute($value): void
+    {
+        $this->attributes['cost_price'] = $value;
+    }
+
+    public function getPriceAttribute(): ?float
+    {
+        return $this->sale_price !== null ? (float) $this->sale_price : null;
+    }
+
+    public function setPriceAttribute($value): void
+    {
+        $this->attributes['sale_price'] = $value;
     }
 
     public function isDish(): bool

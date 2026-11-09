@@ -6,6 +6,7 @@ use App\AI\Contracts\AiProviderInterface;
 use App\AI\DTOs\AiQueryIntent;
 use App\AI\Enums\AiIntent;
 use App\AI\Exceptions\AiProviderException;
+use App\AI\Services\DeterministicAiResolver;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
@@ -15,17 +16,20 @@ class GeminiProvider implements AiProviderInterface
     protected string $model;
     protected string $baseUrl;
     protected int $timeout;
+    protected DeterministicAiResolver $deterministicResolver;
 
     public function __construct(
         ?string $apiKey = null,
         ?string $model = null,
         ?string $baseUrl = null,
-        ?int $timeout = null
+        ?int $timeout = null,
+        ?DeterministicAiResolver $deterministicResolver = null
     ) {
         $this->apiKey = $apiKey ?? config('ai.providers.gemini.api_key');
         $this->model = $model ?: (config('ai.providers.gemini.model') ?: 'gemini-flash-lite-latest');
         $this->baseUrl = $baseUrl ?: (config('ai.providers.gemini.base_url') ?: 'https://generativelanguage.googleapis.com/v1beta');
-        $this->timeout = $timeout ?: ((int) config('ai.timeout', 10) ?: 10);
+        $this->timeout = $timeout ?: ((int) config('ai.timeout', 8) ?: 8);
+        $this->deterministicResolver = $deterministicResolver ?? new DeterministicAiResolver();
     }
 
     /**

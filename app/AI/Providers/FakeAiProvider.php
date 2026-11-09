@@ -55,6 +55,28 @@ class FakeAiProvider implements AiProviderInterface
             return new AiQueryIntent(AiIntent::COUNT_CUSTOMERS);
         }
 
+        if (str_contains($query, 'turno') || (str_contains($query, 'comparad') && str_contains($query, 'ventas')) || str_contains($query, 'hoy vs ayer')) {
+            $shift = str_contains($query, 'tarde') ? 'afternoon' : (str_contains($query, 'mañana') || str_contains($query, 'manana') ? 'morning' : (str_contains($query, 'noche') ? 'night' : null));
+            $compareTo = str_contains($query, 'martes') ? 'previous_tuesday' : (str_contains($query, 'ayer') ? 'yesterday' : 'last_week');
+            return new AiQueryIntent(AiIntent::SALES_COMPARISON, [
+                'shift' => $shift,
+                'target_date' => 'today',
+                'compare_to' => $compareTo,
+            ]);
+        }
+
+        if (str_contains($query, 'margen') || str_contains($query, 'rentab')) {
+            preg_match('/\b(\d+)\b/', $query, $m);
+            $limit = isset($m[1]) ? (int) $m[1] : 5;
+            $order = (str_contains($query, 'mayor') || str_contains($query, 'mas rentab') || str_contains($query, 'más rentab')) ? 'desc' : 'asc';
+            $type = (str_contains($query, 'plato') || str_contains($query, 'comida')) ? 'dish' : null;
+            return new AiQueryIntent(AiIntent::PRODUCT_MARGINS, [
+                'order' => $order,
+                'limit' => $limit,
+                'product_type' => $type,
+            ]);
+        }
+
         if (str_contains($query, 'cliente')) {
             return new AiQueryIntent(AiIntent::LIST_CUSTOMERS);
         }

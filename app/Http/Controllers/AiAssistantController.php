@@ -21,23 +21,26 @@ class AiAssistantController extends Controller
 
         if ($business && $business->isRestaurant()) {
             $suggestions = [
+                '¿Cuánto vendimos en el turno de la tarde comparado con el martes pasado?',
+                '¿Cuáles son los 3 platos con menor margen de ganancia?',
                 '¿Cuál es el estado de las mesas en el salón?',
                 '¿Cuáles son las comandas abiertas en este momento?',
                 '¿Cuántos pedidos a domicilio tenemos hoy?',
                 '¿Cuánto se ha recaudado hoy en propinas?',
-                '¿Cuántos clientes activos tenemos registrados?',
-                'Resumen de ventas de hoy',
                 '¿Cuáles son los productos más vendidos?',
+                '¿Qué productos tienen bajo stock o requieren reposición?',
+                'Resumen de ventas de hoy',
             ];
         } else {
             $suggestions = [
+                'Ventas de hoy vs ayer',
+                '¿Cuánto vendimos en el turno de la tarde comparado con la semana pasada?',
+                '¿Cuáles son los 3 productos con menor margen de ganancia?',
                 '¿Qué productos tienen bajo stock o requieren reposición?',
                 '¿Cuáles son los productos completamente agotados?',
                 '¿Cuáles son los productos más vendidos?',
                 'Resumen de ventas de hoy',
-                '¿Cuántos clientes activos tenemos registrados?',
                 '¿Cuál es el valor total de nuestro inventario?',
-                'Listar los primeros productos del catálogo',
             ];
         }
 
