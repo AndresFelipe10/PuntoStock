@@ -61,11 +61,13 @@ class SendDailyBusinessSummaryCommand extends Command
         $adminRole = Role::where('slug', Role::ROLE_ADMIN)->first();
 
         foreach ($businesses as $business) {
-            $userQuery = $business->users()->wherePivot('is_active', true);
+            $adminUser = null;
             if ($adminRole) {
-                $userQuery->wherePivot('role_id', $adminRole->id);
+                $adminUser = $business->users()
+                    ->wherePivot('is_active', true)
+                    ->wherePivot('role_id', $adminRole->id)
+                    ->first();
             }
-            $adminUser = $userQuery->first();
 
             $recipientEmail = $customEmail ?: ($adminUser?->email ?? $business->email);
 

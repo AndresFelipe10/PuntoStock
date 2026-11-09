@@ -147,18 +147,29 @@
 </head>
 <body style="padding: 24px 12px; background-color: #f1f5f9;">
 
+@php
+    $roleLabel = ($role ?? 'admin') === 'admin' ? 'Administrador' : 'Empleado / Colaborador';
+    $newBiz = $isNewBusiness ?? true;
+@endphp
+
 <div class="container">
     {{-- Header Oficial con Logo --}}
     @include('emails.partials.header-logo', [
-        'subtitle' => 'Credenciales de Acceso y Alta de Comercio'
+        'subtitle' => $newBiz ? 'Credenciales de Acceso y Alta de Comercio' : 'Credenciales de Acceso y Vinculación al Comercio'
     ])
 
     {{-- Content --}}
     <div class="content">
         <h2 class="greeting">Hola, {{ $adminUser->name }}</h2>
-        <p class="intro-text">
-            Te damos la bienvenida a <strong>PuntoStock POS</strong>. Tu comercio <strong>{{ $business->name }}</strong> ha sido registrado exitosamente en nuestra plataforma de gestión de ventas e inventario en tiempo real.
-        </p>
+        @if($newBiz)
+            <p class="intro-text">
+                Te damos una cordial bienvenida a <strong>PuntoStock POS</strong>. Tu comercio <strong>{{ $business->name }}</strong> ha sido registrado exitosamente en nuestra plataforma de gestión de ventas e inventario en tiempo real.
+            </p>
+        @else
+            <p class="intro-text">
+                Te damos una cordial bienvenida a <strong>PuntoStock POS</strong>. Tu cuenta de usuario ha sido vinculada exitosamente al comercio <strong>{{ $business->name }}</strong> con el rol de <strong>{{ $roleLabel }}</strong>.
+            </p>
+        @endif
 
         {{-- Tarjeta de Credenciales --}}
         <div class="credentials-card">
@@ -178,6 +189,13 @@
                 <div class="cred-value">{{ $adminUser->email }}</div>
             </div>
 
+            @if(!$newBiz)
+                <div class="cred-row">
+                    <div class="cred-label">Rol Asignado</div>
+                    <div class="cred-value">{{ $roleLabel }}</div>
+                </div>
+            @endif
+
             <div class="cred-row">
                 <div class="cred-label">Contraseña Temporal</div>
                 <div class="password-box">{{ $plainPassword }}</div>
@@ -193,10 +211,10 @@
 
         {{-- Pasos para Iniciar --}}
         <div class="steps-container">
-            <div class="steps-title">Pasos para ingresar al panel</div>
+            <div class="steps-title">¿Cómo ingresar a tu panel?</div>
             <div class="step-item">1. Haz clic en el botón inferior o ingresa a <strong>{{ config('app.url') }}/login</strong>.</div>
-            <div class="step-item">2. Digita tu correo <code>{{ $adminUser->email }}</code> y la contraseña temporal proporcionada arriba.</div>
-            <div class="step-item">3. Establece tu nueva contraseña definitiva para comenzar a operar en <strong>{{ $business->name }}</strong>.</div>
+            <div class="step-item">2. Inicia sesión con tu correo electrónico (<code>{{ $adminUser->email }}</code>) y la contraseña temporal asignada.</div>
+            <div class="step-item">3. Establece tu nueva contraseña personal y segura cuando el sistema te lo solicite en este primer ingreso.</div>
         </div>
 
         {{-- Botón CTA --}}
@@ -205,13 +223,15 @@
         </a>
 
         <p style="font-size: 12px; color: #64748b; margin: 0; text-align: center; line-height: 1.5;">
-            Si requieres asistencia con la configuración inicial de tu comercio, comunícate con nuestro equipo de soporte técnico.
+            Si requieres asistencia con la configuración de tu cuenta o el uso de la plataforma, comunícate con el administrador del comercio o con nuestro equipo de soporte técnico.
         </p>
     </div>
 
     {{-- Footer Legal --}}
     @include('emails.partials.footer', [
-        'footerNote' => 'Has recibido este mensaje porque tu comercio ' . $business->name . ' fue dado de alta en la plataforma PuntoStock POS.'
+        'footerNote' => $newBiz
+            ? 'Has recibido este mensaje porque tu comercio ' . $business->name . ' fue dado de alta en la plataforma PuntoStock POS.'
+            : 'Has recibido este mensaje porque tu cuenta fue vinculada al comercio ' . $business->name . ' en la plataforma PuntoStock POS.'
     ])
 </div>
 

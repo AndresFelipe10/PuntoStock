@@ -447,6 +447,21 @@ class BusinessController extends Controller
             return $user;
         });
 
+        try {
+            Mail::to($user->email)->send(
+                new WelcomeTenantMail($business, $user, $plainPassword, $validated['role'], false)
+            );
+            Log::info("Correo de bienvenida enviado exitosamente a nuevo colaborador #{$user->id} ({$user->email}) en negocio #{$business->id}.");
+        } catch (\Throwable $e) {
+            Log::error('Error enviando correo de bienvenida a nuevo colaborador', [
+                'business_id' => $business->id,
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'role' => $validated['role'],
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         session()->flash('temp_password', $plainPassword);
         session()->flash('created_user_email', $user->email);
         session()->flash('created_user_name', $user->name);

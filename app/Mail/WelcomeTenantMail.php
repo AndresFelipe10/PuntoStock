@@ -17,7 +17,9 @@ class WelcomeTenantMail extends Mailable
     public function __construct(
         public Business $business,
         public User $adminUser,
-        public string $plainPassword
+        public string $plainPassword,
+        public string $role = 'admin',
+        public bool $isNewBusiness = true
     ) {
     }
 
