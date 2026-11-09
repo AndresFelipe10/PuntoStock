@@ -32,19 +32,10 @@ class LoginController extends Controller
 
         $user = $request->user();
 
-        // 1. Invalidar la sesión anterior en la base de datos si existe (Kick-out)
-        if ($user && ! empty($user->current_session_id) && Schema::hasTable('sessions')) {
-            try {
-                DB::table('sessions')->where('id', $user->current_session_id)->delete();
-            } catch (\Throwable $e) {
-                Log::warning('No se pudo invalidar la sesión anterior en sessions: ' . $e->getMessage());
-            }
-        }
-
-        // 2. Regenerar la sesión
+        // 1. Regenerar la sesión actual
         $request->session()->regenerate();
 
-        // 3. Asignar la nueva sesión activa al usuario
+        // 2. Asignar la nueva sesión activa al usuario
         $newSessionId = session()->getId();
         if (Schema::hasColumn('users', 'current_session_id')) {
             $user->update([
@@ -52,18 +43,6 @@ class LoginController extends Controller
             ]);
         }
         $request->session()->put('auth_session_token', $newSessionId);
-
-        // Limpiar cualquier otra sesión huérfana de este usuario en la tabla sessions
-        if (config('session.driver') === 'database' && Schema::hasTable('sessions')) {
-            try {
-                DB::table('sessions')
-                    ->where('user_id', $user->id)
-                    ->where('id', '!=', $newSessionId)
-                    ->delete();
-            } catch (\Throwable $e) {
-                // Silencioso
-            }
-        }
 
         if ($user->is_superadmin) {
             if ($user->must_change_password) {

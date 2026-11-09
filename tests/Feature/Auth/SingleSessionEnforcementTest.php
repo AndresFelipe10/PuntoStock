@@ -88,9 +88,9 @@ class SingleSessionEnforcementTest extends TestCase
     }
 
     /**
-     * Test 3: Con driver database, el login invalida y destruye el registro de la sesión previa en la tabla sessions.
+     * Test 3: Con driver database, la sesión obsoleta permanece hasta que EnsureSingleSession la intercepta y purga de sessions.
      */
-    public function test_subsequent_login_deletes_old_session_from_database_sessions_table(): void
+    public function test_stale_session_is_deleted_from_database_sessions_when_intercepted_by_middleware(): void
     {
         config(['session.driver' => 'database']);
 
@@ -115,15 +115,24 @@ class SingleSessionEnforcementTest extends TestCase
         $response->assertRedirect(route('dashboard'));
         $this->assertAuthenticatedAs($this->user);
 
-        // La sesión vieja fue purgada de la tabla sessions
-        $this->assertFalse(DB::table('sessions')->where('id', $oldSessionId)->exists());
+        $this->user->refresh();
 
-        $freshUser = $this->user->fresh();
-        $this->assertNotEquals($oldSessionId, $freshUser->current_session_id);
+        // La sesión previa aún existe en BD hasta que el dispositivo viejo intenta navegar
+        $this->assertTrue(DB::table('sessions')->where('id', $oldSessionId)->exists());
+
+        // Ahora el dispositivo viejo navega: EnsureSingleSession lo intercepta, purga su sesión y redirige
+        $staleResponse = $this->actingAs($this->user)
+            ->withSession(['auth_session_token' => $oldSessionId])
+            ->get(route('dashboard'));
+
+        $staleResponse->assertRedirect(route('login', ['session_status' => 'device_conflict']));
+
+        // Ahora sí se eliminó de la tabla sessions
+        $this->assertFalse(DB::table('sessions')->where('id', $oldSessionId)->exists());
     }
 
     /**
-     * Test 4: Cuando la sesión vieja intenta navegar, EnsureSingleSession la expulsa al login con mensaje explicativo.
+     * Test 4: Cuando la sesión vieja intenta navegar, EnsureSingleSession la expulsa a /login con session_status y flash.
      */
     public function test_old_session_is_expelled_by_middleware_when_navigating(): void
     {
@@ -136,17 +145,23 @@ class SingleSessionEnforcementTest extends TestCase
             ->withSession(['auth_session_token' => $oldToken])
             ->get(route('dashboard'));
 
-        $response->assertRedirect(route('login'));
+        $response->assertRedirect(route('login', ['session_status' => 'device_conflict']));
         $response->assertSessionHas('session_warning', 'Tu sesión ha caducado o se inició sesión desde otro dispositivo.');
         $this->assertGuest();
 
+        // 1. Verificación del renderizado vía sesión flash
         $loginResponse = $this->get(route('login'));
         $loginResponse->assertOk();
         $loginResponse->assertSee('Tu sesión ha caducado o se inició sesión desde otro dispositivo.');
+
+        // 2. Verificación del renderizado directo con query parameter (incluso sin flash)
+        $queryResponse = $this->get(route('login', ['session_status' => 'device_conflict']));
+        $queryResponse->assertOk();
+        $queryResponse->assertSee('Tu sesión ha caducado o se inició sesión desde otro dispositivo.');
     }
 
     /**
-     * Test 5: Solicitud JSON en sesión vieja responde 401 con mensaje descriptivo.
+     * Test 5: Solicitud JSON en sesión vieja responde 401 con mensaje descriptivo y redirect url.
      */
     public function test_concurrent_login_invalidates_json_request_with_401(): void
     {
@@ -162,6 +177,7 @@ class SingleSessionEnforcementTest extends TestCase
         $response->assertStatus(401);
         $response->assertJson([
             'message' => 'Tu sesión ha caducado o se inició sesión desde otro dispositivo.',
+            'redirect' => route('login', ['session_status' => 'device_conflict']),
         ]);
         $this->assertGuest();
     }
