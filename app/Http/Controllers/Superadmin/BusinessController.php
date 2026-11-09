@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Superadmin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Superadmin\StoreTenantUserRequest;
+use App\Mail\WelcomeTenantMail;
 use App\Models\Business;
 use App\Models\Role;
 use App\Models\User;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -101,6 +103,7 @@ class BusinessController extends Controller
             ],
             'admin_email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'admin_password' => ['nullable', 'string', 'min:8'],
+            'nightly_report_enabled' => ['nullable', 'boolean'],
         ], [
             'name.required' => 'El nombre del negocio es obligatorio.',
             'name.min' => 'El nombre del negocio debe tener al menos 2 caracteres.',
@@ -127,9 +130,10 @@ class BusinessController extends Controller
             ? $validated['admin_password']
             : Str::password(16, symbols: true);
 
+        $nightlyReportEnabled = $request->boolean('nightly_report_enabled', true);
         $superadminId = auth()->id();
 
-        $business = DB::transaction(function () use ($validated, $plainPassword, $superadminId) {
+        [$business, $admin] = DB::transaction(function () use ($validated, $plainPassword, $superadminId, $nightlyReportEnabled) {
             $nowBogota = Carbon::now('America/Bogota');
 
             $business = new Business();
@@ -141,6 +145,7 @@ class BusinessController extends Controller
             $business->address = $validated['address'] ?? null;
             $business->status = 'active';
             $business->is_active = true;
+            $business->nightly_report_enabled = $nightlyReportEnabled;
             $business->subscription_starts_at = $nowBogota;
             $business->subscription_ends_at = $nowBogota->copy()->addDays(30);
             $business->save();
@@ -168,8 +173,18 @@ class BusinessController extends Controller
 
             Log::info("Negocio #{$business->id} ({$business->name}) y administrador inicial #{$admin->id} creados por el superadministrador #{$superadminId}.");
 
-            return $business;
+            return [$business, $admin];
         });
+
+        try {
+            Mail::to($admin->email)->send(new WelcomeTenantMail($business, $admin, $plainPassword));
+            Log::info("Correo de bienvenida enviado exitosamente al administrador #{$admin->id} ({$admin->email}) del negocio #{$business->id}.");
+        } catch (\Throwable $e) {
+            Log::error("Error enviando correo de bienvenida al comercio #{$business->id} ({$admin->email}): " . $e->getMessage(), [
+                'business_id' => $business->id,
+                'email' => $admin->email,
+            ]);
+        }
 
         session()->flash('generated_password', $plainPassword);
 
@@ -222,6 +237,7 @@ class BusinessController extends Controller
                 'regex:/^(?!.*(.)\1{5,})[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s#\-\.,\/°]+$/u',
             ],
             'subscription_ends_at' => ['nullable', 'date'],
+            'nightly_report_enabled' => ['nullable', 'boolean'],
         ], [
             'name.required' => 'El nombre del negocio es obligatorio.',
             'name.min' => 'El nombre del negocio debe tener al menos 2 caracteres.',
@@ -243,6 +259,10 @@ class BusinessController extends Controller
                 : null;
         } else {
             unset($validated['subscription_ends_at']);
+        }
+
+        if ($request->has('nightly_report_enabled')) {
+            $validated['nightly_report_enabled'] = $request->boolean('nightly_report_enabled');
         }
 
         $business->update($validated);

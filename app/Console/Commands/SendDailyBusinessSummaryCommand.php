@@ -48,7 +48,9 @@ class SendDailyBusinessSummaryCommand extends Command
                 return Command::FAILURE;
             }
         } else {
-            $businesses = Business::where('is_active', true)->get();
+            $businesses = Business::where('is_active', true)
+                ->where('nightly_report_enabled', true)
+                ->get();
         }
 
         $total = $businesses->count();

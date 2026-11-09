@@ -180,11 +180,10 @@
 <body style="padding: 24px 12px; background-color: #f1f5f9;">
 
 <div class="container">
-    {{-- Header --}}
-    <div class="header">
-        <h1 class="header-brand">Punto<span>Stock</span> POS</h1>
-        <p class="header-subtitle">Resumen Operativo Diario &bull; {{ $business->name }} &bull; {{ $summary['date_human'] }}</p>
-    </div>
+    {{-- Header con Logo Oficial --}}
+    @include('emails.partials.header-logo', [
+        'subtitle' => 'Resumen Operativo Diario • ' . $business->name . ' • ' . $summary['date_human']
+    ])
 
     {{-- Content --}}
     <div class="content">
@@ -302,16 +301,10 @@
         </a>
     </div>
 
-    {{-- Footer --}}
-    <div class="footer">
-        <p style="margin: 0 0 8px 0;">Este es un resumen operativo generado automáticamente por PuntoStock POS.</p>
-        <p style="margin: 0 0 8px 0;">
-            <a href="https://puntostockpos.com">puntostockpos.com</a> &bull; 
-            <a href="https://puntostockpos.com/terminos-y-condiciones/">Términos de Servicio</a> &bull; 
-            <a href="https://puntostockpos.com/politica-de-privacidad/">Política de Privacidad</a>
-        </p>
-        <p style="margin: 0; font-size: 11px;">PuntoStock POS &copy; {{ date('Y') }}. Todos los derechos reservados.</p>
-    </div>
+    {{-- Footer con Enlaces Legales --}}
+    @include('emails.partials.footer', [
+        'footerNote' => 'Este es un resumen operativo generado automáticamente por PuntoStock POS para la gerencia de ' . $business->name . '.'
+    ])
 </div>
 
 </body>

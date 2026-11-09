@@ -70,7 +70,14 @@ Sistema desatendido para entrega de reportes de cierre diario a los administrado
   - Top 5 productos más vendidos del día.
   - Alerta de inventario crítico con déficit y recomendación de abastecimiento al proveedor.
   - Conclusión ejecutiva redactada por el motor analítico.
-- **Mailable y Plantilla:** `App\Mail\DailyBusinessSummaryMail` y `resources/views/emails/daily-summary.blade.php` (diseño HTML responsivo, branding corporativo PuntoStock y formato monetario colombiano COP).
+- **Mailable y Plantilla:** `App\Mail\DailyBusinessSummaryMail` y `resources/views/emails/daily-summary.blade.php` (diseño HTML responsivo, branding corporativo PuntoStock con banner oficial y logo `apple-touch-icon.png`, footer legal de privacidad/términos y formato monetario colombiano COP).
+- **Control Opt-In / Opt-Out (`nightly_report_enabled`):**
+  - Columna booleana en la tabla `businesses` (por defecto `true`).
+  - Switch interactivo en SuperAdmin (`superadmin.businesses.create` / `edit`) y en la configuración del comercio (`/my-business`).
+  - El comando programado `pos:send-daily-summary` filtra estrictamente por `is_active = true` y `nightly_report_enabled = true`.
+- **Correo de Bienvenida con Credenciales:**
+  - Al dar de alta un comercio desde SuperAdmin, se despacha `App\Mail\WelcomeTenantMail` con las credenciales temporales del administrador y enlace de acceso (`/login`).
+  - Flujo protegido: forzado de cambio de clave en primer ingreso (`must_change_password = true`) y manejo defensivo de excepciones SMTP sin interrumpir la transacción de BD.
 
 ## Restricciones no negociables
 - Solo lectura: prohibido INSERT/UPDATE/DELETE/DROP/ALTER/TRUNCATE desde cualquier servicio invocado por el módulo IA.

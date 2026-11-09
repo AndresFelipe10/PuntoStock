@@ -21,6 +21,7 @@ class Business extends Model
         'phone',
         'email',
         'address',
+        'nightly_report_enabled',
         'subscription_starts_at',
         'subscription_ends_at',
     ];
@@ -29,6 +30,7 @@ class Business extends Model
     {
         return [
             'is_active' => 'boolean',
+            'nightly_report_enabled' => 'boolean',
             'subscription_starts_at' => 'datetime',
             'subscription_ends_at' => 'datetime',
         ];

@@ -30,6 +30,7 @@ class UpdateBusinessRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
+            'nightly_report_enabled' => ['sometimes', 'boolean'],
         ];
     }
 }

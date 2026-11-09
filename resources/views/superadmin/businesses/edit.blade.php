@@ -136,6 +136,21 @@
                     </div>
                 </div>
 
+                <div class="mb-4 p-3 rounded-3 border border-secondary border-opacity-50 bg-dark">
+                    <div class="form-check form-switch d-flex align-items-center justify-content-between p-0 mb-0">
+                        <div>
+                            <label class="form-check-label fw-bold text-light mb-1 d-block" for="nightly_report_enabled" style="cursor: pointer;">
+                                <i class="bi bi-moon-stars-fill text-warning me-1"></i> Resumen Nocturno Automatizado (Asistente IA)
+                            </label>
+                            <div class="text-secondary small">
+                                Envía automáticamente a las 11:30 PM el reporte gerencial de ventas, recaudos y stock crítico al correo del administrador.
+                            </div>
+                        </div>
+                        <input type="hidden" name="nightly_report_enabled" value="0">
+                        <input class="form-check-input ms-3" type="checkbox" role="switch" id="nightly_report_enabled" name="nightly_report_enabled" value="1" {{ old('nightly_report_enabled', $business->nightly_report_enabled) ? 'checked' : '' }} style="width: 2.8em; height: 1.5em; cursor: pointer;">
+                    </div>
+                </div>
+
                 <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 border-top border-secondary pt-3">
                     <a href="{{ route('superadmin.businesses.index') }}" class="btn btn-outline-secondary px-4 w-100 w-sm-auto text-center" style="min-height: 44px; display: inline-flex; align-items: center; justify-content: center;">Cancelar</a>
                     <button type="submit" class="btn btn-primary px-4 fw-semibold w-100 w-sm-auto d-inline-flex align-items-center justify-content-center" style="min-height: 44px;">

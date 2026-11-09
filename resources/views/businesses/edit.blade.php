@@ -82,6 +82,21 @@
                     </div>
                 </div>
 
+                <div class="card border border-light-subtle rounded-3 p-3 mb-4 bg-light bg-opacity-50">
+                    <div class="form-check form-switch d-flex align-items-center justify-content-between p-0 mb-0">
+                        <div>
+                            <label class="form-check-label fw-bold text-dark mb-1 d-block" for="nightly_report_enabled" style="cursor: pointer;">
+                                <i class="bi bi-moon-stars-fill text-primary me-1"></i> Resumen Nocturno Automatizado (Asistente IA)
+                            </label>
+                            <div class="text-muted small">
+                                Recibe todos los días a las 11:30 PM un resumen ejecutivo por correo electrónico con las ventas del día, recaudos y alertas de inventario crítico.
+                            </div>
+                        </div>
+                        <input type="hidden" name="nightly_report_enabled" value="0">
+                        <input class="form-check-input ms-3" type="checkbox" role="switch" id="nightly_report_enabled" name="nightly_report_enabled" value="1" {{ old('nightly_report_enabled', $business->nightly_report_enabled) ? 'checked' : '' }} style="width: 2.8em; height: 1.5em; cursor: pointer;">
+                    </div>
+                </div>
+
                 <div class="d-flex justify-content-end gap-2">
                     <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary px-4 rounded-3">Cancelar</a>
                     <button type="submit" class="btn btn-primary px-4 rounded-3 fw-semibold">
