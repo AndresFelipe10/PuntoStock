@@ -41,10 +41,7 @@ class EnsureSingleSession
                     }
 
                     return redirect()->route('login')
-                        ->with('warning', $message)
-                        ->withErrors([
-                            'email' => $message,
-                        ]);
+                        ->with('session_warning', $message);
                 }
             }
         } catch (\Throwable $e) {

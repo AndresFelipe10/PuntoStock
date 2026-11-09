@@ -137,11 +137,12 @@ class SingleSessionEnforcementTest extends TestCase
             ->get(route('dashboard'));
 
         $response->assertRedirect(route('login'));
-        $response->assertSessionHas('warning', 'Tu sesión ha caducado o se inició sesión desde otro dispositivo.');
-        $response->assertSessionHasErrors([
-            'email' => 'Tu sesión ha caducado o se inició sesión desde otro dispositivo.',
-        ]);
+        $response->assertSessionHas('session_warning', 'Tu sesión ha caducado o se inició sesión desde otro dispositivo.');
         $this->assertGuest();
+
+        $loginResponse = $this->get(route('login'));
+        $loginResponse->assertOk();
+        $loginResponse->assertSee('Tu sesión ha caducado o se inició sesión desde otro dispositivo.');
     }
 
     /**

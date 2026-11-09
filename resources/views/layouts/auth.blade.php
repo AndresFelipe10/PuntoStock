@@ -108,7 +108,7 @@
                         </div>
                     @endif
 
-                    @if (session('warning'))
+                    @if (session('warning') && ! session('session_warning'))
                         <div class="alert alert-warning d-flex align-items-center mb-4 py-2 px-3 small rounded-3" role="alert">
                             <i class="bi bi-exclamation-circle-fill me-2"></i>
                             <div>{{ session('warning') }}</div>

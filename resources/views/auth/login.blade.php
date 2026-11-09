@@ -5,6 +5,19 @@
 @section('subheading', 'Ingresa tus credenciales para acceder a tu panel')
 
 @section('content')
+@if (session('session_warning') || session('warning'))
+    <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+            <svg style="width: 20px; height: 20px; color: #d97706; flex-shrink: 0; margin-top: 1px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p style="margin: 0; font-size: 13.5px; line-height: 1.45; color: #92400e; font-weight: 500;">
+                {{ session('session_warning') ?? session('warning') }}
+            </p>
+        </div>
+    </div>
+@endif
+
 <form method="POST" action="{{ route('login') }}" novalidate>
     @csrf
 
