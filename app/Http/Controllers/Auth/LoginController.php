@@ -30,27 +30,39 @@ class LoginController extends Controller
     {
         $request->authenticate();
 
-        $request->session()->regenerate();
-
         $user = $request->user();
 
-        // Control defensivo de Sesión Única (Anti-multisesión)
-        try {
-            $sessionToken = (string) Str::uuid();
-            $request->session()->put('auth_session_token', $sessionToken);
-
-            if (Schema::hasColumn('users', 'current_session_id')) {
-                $user->forceFill(['current_session_id' => $sessionToken])->saveQuietly();
+        // 1. Invalidar la sesión anterior en la base de datos si existe (Kick-out)
+        if ($user && ! empty($user->current_session_id) && Schema::hasTable('sessions')) {
+            try {
+                DB::table('sessions')->where('id', $user->current_session_id)->delete();
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo invalidar la sesión anterior en sessions: ' . $e->getMessage());
             }
+        }
 
-            if (config('session.driver') === 'database' && Schema::hasTable('sessions')) {
+        // 2. Regenerar la sesión
+        $request->session()->regenerate();
+
+        // 3. Asignar la nueva sesión activa al usuario
+        $newSessionId = session()->getId();
+        if (Schema::hasColumn('users', 'current_session_id')) {
+            $user->update([
+                'current_session_id' => $newSessionId,
+            ]);
+        }
+        $request->session()->put('auth_session_token', $newSessionId);
+
+        // Limpiar cualquier otra sesión huérfana de este usuario en la tabla sessions
+        if (config('session.driver') === 'database' && Schema::hasTable('sessions')) {
+            try {
                 DB::table('sessions')
                     ->where('user_id', $user->id)
-                    ->where('id', '!=', $request->session()->getId())
+                    ->where('id', '!=', $newSessionId)
                     ->delete();
+            } catch (\Throwable $e) {
+                // Silencioso
             }
-        } catch (\Throwable $e) {
-            Log::warning('No se pudo registrar token de sesión única en login: ' . $e->getMessage());
         }
 
         if ($user->is_superadmin) {
@@ -69,7 +81,7 @@ class LoginController extends Controller
         if (! $userIsActive || ! $membership || ! $businessIsActive) {
             try {
                 if (Schema::hasColumn('users', 'current_session_id')) {
-                    $user->forceFill(['current_session_id' => null])->saveQuietly();
+                    $user->update(['current_session_id' => null]);
                 }
             } catch (\Throwable $e) {
                 // Silencioso ante rollback de cuenta inactiva
@@ -100,7 +112,7 @@ class LoginController extends Controller
             $user = $request->user();
 
             if ($user && Schema::hasColumn('users', 'current_session_id')) {
-                $user->forceFill(['current_session_id' => null])->saveQuietly();
+                $user->update(['current_session_id' => null]);
             }
         } catch (\Throwable $e) {
             Log::warning('No se pudo limpiar token de sesión única en logout: ' . $e->getMessage());

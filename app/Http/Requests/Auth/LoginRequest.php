@@ -58,22 +58,6 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::validate($this->only('email', 'password'))) {
-            RateLimiter::hit($this->throttleKey());
-
-            throw ValidationException::withMessages([
-                'email' => __('auth.failed'),
-            ]);
-        }
-
-        $user = User::where('email', $this->email)->first();
-
-        if ($user && $this->hasActiveSession($user)) {
-            throw ValidationException::withMessages([
-                'email' => __('auth.active_session'),
-            ]);
-        }
-
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
@@ -83,50 +67,6 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
-    }
-
-    /**
-     * Determina si el usuario tiene una sesión activa en otro dispositivo.
-     */
-    protected function hasActiveSession(User $user): bool
-    {
-        try {
-            if (! Schema::hasColumn('users', 'current_session_id')) {
-                return false;
-            }
-
-            $currentSessionId = $this->session()->getId();
-
-            // 1. Verificación primaria en base de datos si el driver es database y la tabla sessions existe
-            if (config('session.driver') === 'database' && Schema::hasTable('sessions')) {
-                $lifetime = (int) config('session.lifetime', 120);
-                $threshold = now()->subMinutes($lifetime)->timestamp;
-
-                $hasActiveDbSession = DB::table('sessions')
-                    ->where('user_id', $user->id)
-                    ->where('id', '!=', $currentSessionId)
-                    ->where('last_activity', '>=', $threshold)
-                    ->exists();
-
-                if ($hasActiveDbSession) {
-                    return true;
-                }
-
-                // Si expiró o ya no existe en la tabla sessions, limpiar current_session_id
-                if (! empty($user->current_session_id)) {
-                    $user->forceFill(['current_session_id' => null])->saveQuietly();
-                }
-
-                return false;
-            }
-
-            // 2. Verificación secundaria para otros drivers (testing / array / file)
-            return ! empty($user->current_session_id) && $user->current_session_id !== $this->session()->get('auth_session_token');
-        } catch (\Throwable $e) {
-            Log::warning('Error comprobando sesión activa en LoginRequest: ' . $e->getMessage());
-
-            return false;
-        }
     }
 
     /**
