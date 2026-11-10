@@ -19,7 +19,6 @@ class Expense extends Model
     protected $table = 'expenses';
 
     protected $fillable = [
-        'business_id',
         'supplier_id',
         'invoice_number',
         'issue_date',

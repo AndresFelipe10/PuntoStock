@@ -40,7 +40,12 @@ fi
 
 DB_NAME="${DB_DATABASE:-sistema_web}"
 DB_USER="root"
-DB_PASS="${DB_ROOT_PASSWORD:-sistema_root_password}"
+DB_PASS="${DB_ROOT_PASSWORD:-}"
+
+if [ -z "${DB_PASS}" ]; then
+    echo "ERROR: La contraseña de base de datos (DB_ROOT_PASSWORD) no está configurada en .env." >&2
+    exit 1
+fi
 
 # Detectar contenedor activo
 if docker ps --format '{{.Names}}' | grep -q "^sistema_db_prod$"; then
@@ -62,9 +67,9 @@ fi
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Restaurando base de datos desde ${BACKUP_FILE}..."
 
 if [[ "${BACKUP_FILE}" == *.gz ]]; then
-    gunzip -c "${BACKUP_FILE}" | docker exec -i "${CONTAINER_NAME}" mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}"
+    gunzip -c "${BACKUP_FILE}" | docker exec -i -e MYSQL_PWD="${DB_PASS}" "${CONTAINER_NAME}" mysql -u"${DB_USER}" "${DB_NAME}"
 else
-    docker exec -i "${CONTAINER_NAME}" mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" < "${BACKUP_FILE}"
+    docker exec -i -e MYSQL_PWD="${DB_PASS}" "${CONTAINER_NAME}" mysql -u"${DB_USER}" "${DB_NAME}" < "${BACKUP_FILE}"
 fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Restauración completada exitosamente."

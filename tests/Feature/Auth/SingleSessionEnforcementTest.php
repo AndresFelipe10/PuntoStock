@@ -202,26 +202,25 @@ class SingleSessionEnforcementTest extends TestCase
     }
 
     /**
-     * Test 7: Petición GET a /logout cierra sesión voluntariamente y limpia current_session_id.
+     * Test 7: Petición GET a /logout es rechazada con 405 (Method Not Allowed) y previene Logout CSRF.
      */
-    public function test_get_request_to_logout_clears_session_and_redirects_to_login(): void
+    public function test_get_request_to_logout_is_rejected_with_405_and_preserves_session(): void
     {
         $this->user->forceFill(['current_session_id' => 'sesion-para-cerrar'])->saveQuietly();
 
         $response = $this->actingAs($this->user)->get(route('logout'));
 
-        $response->assertRedirect(route('login'));
-        $this->assertGuest();
-        $this->assertNull($this->user->fresh()->current_session_id);
+        $response->assertStatus(405);
+        $this->assertAuthenticatedAs($this->user);
+        $this->assertEquals('sesion-para-cerrar', $this->user->fresh()->current_session_id);
     }
 
     /**
-     * Test 8: POST a /logout sin token CSRF no arroja 419 y redirige directamente a /login.
+     * Test 8: POST a /logout con token expirado/ausente captura TokenMismatchException y redirige limpiamente a /login.
      */
     public function test_logout_without_csrf_token_does_not_throw_419_and_redirects_to_login(): void
     {
-        $response = $this->withoutMiddleware(\App\Http\Middleware\VerifyCsrfToken::class)
-            ->actingAs($this->user)
+        $response = $this->actingAs($this->user)
             ->post(route('logout'));
 
         $response->assertRedirect(route('login'));

@@ -32,8 +32,13 @@ if [ -f "${PROJECT_ROOT}/.env" ]; then
 fi
 
 DB_NAME="${DB_DATABASE:-sistema_web}"
-DB_PASS="${DB_ROOT_PASSWORD:-${DB_PASSWORD:-sistema_password}}"
+DB_PASS="${DB_ROOT_PASSWORD:-${DB_PASSWORD:-}}"
 DB_USER="${DB_USERNAME:-root}"
+
+if [ -z "${DB_PASS}" ]; then
+    echo "ERROR: La contraseña de base de datos no está configurada en .env." >&2
+    exit 1
+fi
 
 # Detectar contenedores activos (producción o desarrollo)
 if docker ps --format '{{.Names}}' | grep -q "^sistema_db_prod$"; then
@@ -48,7 +53,7 @@ else
 fi
 
 echo "Iniciando respaldo de base de datos '${DB_NAME}' desde '${DB_CONTAINER}'..."
-docker exec "${DB_CONTAINER}" mysqldump --no-tablespaces --single-transaction --quick -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" > "$TEMP_DIR/database.sql"
+docker exec -e MYSQL_PWD="${DB_PASS}" "${DB_CONTAINER}" mysqldump --no-tablespaces --single-transaction --quick -u"${DB_USER}" "${DB_NAME}" > "$TEMP_DIR/database.sql"
 
 echo "Iniciando respaldo de adjuntos privados (app_storage) desde '${APP_CONTAINER}'..."
 docker exec "${APP_CONTAINER}" sh -c "mkdir -p /var/www/html/storage/app/private && tar -czf - -C /var/www/html/storage/app private" > "$TEMP_DIR/storage_private.tar.gz"

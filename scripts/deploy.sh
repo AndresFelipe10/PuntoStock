@@ -27,7 +27,8 @@ fi
 # 3. Poner en modo mantenimiento si el contenedor está corriendo
 if docker ps --format '{{.Names}}' | grep -q "^sistema_app_prod$"; then
     echo ">> Activando modo mantenimiento temporal..."
-    docker compose -f docker-compose.prod.yml exec app php artisan down --render="errors.500" --secret="deploy-bypass" || true
+    BYPASS_SECRET="${DEPLOY_BYPASS_SECRET:-$(head -c 16 /dev/urandom | xxd -p 2>/dev/null || openssl rand -hex 16)}"
+    docker compose -f docker-compose.prod.yml exec app php artisan down --render="errors.500" --secret="$BYPASS_SECRET" || true
 fi
 
 # 4. Construir y levantar contenedores de producción

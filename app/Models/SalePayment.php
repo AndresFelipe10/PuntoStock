@@ -15,7 +15,6 @@ class SalePayment extends Model
     protected $table = 'sale_payments';
 
     protected $fillable = [
-        'business_id',
         'sale_id',
         'method',
         'amount',

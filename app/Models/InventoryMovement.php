@@ -18,7 +18,6 @@ class InventoryMovement extends Model
     protected $table = 'inventory_movements';
 
     protected $fillable = [
-        'business_id',
         'product_id',
         'user_id',
         'sale_id',

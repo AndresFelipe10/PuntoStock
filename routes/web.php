@@ -50,8 +50,8 @@ Route::middleware('guest')->group(function () {
     Route::post('/reset-password', [PasswordResetController::class, 'updatePassword'])->middleware('throttle:10,1')->name('password.update');
 });
 
-// Cierre de sesión seguro y accesible (GET y POST, sin CSRF forzado)
-Route::match(['get', 'post'], '/logout', [LoginController::class, 'destroy'])->name('logout');
+// Cierre de sesión seguro y protegido contra CSRF (exclusivo método POST)
+Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
 
 // Rutas protegidas por autenticación
 Route::middleware('auth')->group(function () {

@@ -14,7 +14,6 @@ class RestaurantOrderItem extends Model
     protected $table = 'restaurant_order_items';
 
     protected $fillable = [
-        'business_id',
         'order_id',
         'product_id',
         'quantity',

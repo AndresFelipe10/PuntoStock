@@ -33,7 +33,12 @@ fi
 
 DB_NAME="${DB_DATABASE:-sistema_web}"
 DB_USER="root"
-DB_PASS="${DB_ROOT_PASSWORD:-sistema_root_password}"
+DB_PASS="${DB_ROOT_PASSWORD:-}"
+
+if [ -z "${DB_PASS}" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: La contraseña de base de datos (DB_ROOT_PASSWORD) no está configurada en .env." >&2
+    exit 1
+fi
 
 # Detectar contenedor de base de datos activo (producción o desarrollo)
 if docker ps --format '{{.Names}}' | grep -q "^sistema_db_prod$"; then
@@ -51,10 +56,9 @@ BACKUP_FILE="${BACKUP_DIR}/dump_${DB_NAME}_${TIMESTAMP}.sql.gz"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Iniciando respaldo de '${DB_NAME}' desde '${CONTAINER_NAME}'..."
 
-# Generar dump y comprimir con gzip
-docker exec "${CONTAINER_NAME}" mysqldump \
+# Generar dump y comprimir con gzip protegiendo credenciales en MYSQL_PWD
+docker exec -e MYSQL_PWD="${DB_PASS}" "${CONTAINER_NAME}" mysqldump \
     -u"${DB_USER}" \
-    -p"${DB_PASS}" \
     --single-transaction \
     --quick \
     --routines \

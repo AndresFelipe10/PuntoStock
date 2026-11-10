@@ -4,8 +4,10 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class PasswordResetTest extends TestCase
@@ -65,5 +67,44 @@ class PasswordResetTest extends TestCase
 
         $response->assertRedirect(route('login'));
         $this->assertTrue(Hash::check('newpassword123', $user->fresh()->password));
+    }
+
+    public function test_password_reset_revokes_current_session_id_and_purges_sessions_table(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'active-session@example.com',
+            'password' => bcrypt('oldpassword123'),
+            'current_session_id' => 'stale-session-123',
+        ]);
+
+        if (Schema::hasTable('sessions')) {
+            DB::table('sessions')->insert([
+                'id' => 'stale-session-123',
+                'user_id' => $user->id,
+                'ip_address' => '127.0.0.1',
+                'user_agent' => 'PHPUnit',
+                'payload' => serialize(['test' => 1]),
+                'last_activity' => now()->timestamp,
+            ]);
+            $this->assertTrue(DB::table('sessions')->where('id', 'stale-session-123')->exists());
+        }
+
+        $token = Password::createToken($user);
+
+        $response = $this->post('/reset-password', [
+            'token' => $token,
+            'email' => 'active-session@example.com',
+            'password' => 'brandnewpassword123',
+            'password_confirmation' => 'brandnewpassword123',
+        ]);
+
+        $response->assertRedirect(route('login'));
+        $freshUser = $user->fresh();
+        $this->assertTrue(Hash::check('brandnewpassword123', $freshUser->password));
+        $this->assertNull($freshUser->current_session_id);
+
+        if (Schema::hasTable('sessions')) {
+            $this->assertFalse(DB::table('sessions')->where('id', 'stale-session-123')->exists());
+        }
     }
 }

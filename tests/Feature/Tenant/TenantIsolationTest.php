@@ -191,4 +191,87 @@ class TenantIsolationTest extends TestCase
             'nit' => '901234567-8',
         ]);
     }
+
+    public function test_authenticated_user_in_business_a_cannot_inject_business_b_id_when_creating_product_or_sale(): void
+    {
+        $userA = User::factory()->create();
+        $businessA = Business::create(['name' => 'Negocio A']);
+        $businessA->users()->attach($userA->id, ['role_id' => $this->adminRole->id, 'is_active' => true]);
+
+        $userB = User::factory()->create();
+        $businessB = Business::create(['name' => 'Negocio B']);
+        $businessB->users()->attach($userB->id, ['role_id' => $this->adminRole->id, 'is_active' => true]);
+
+        $catA = Category::withoutGlobalScopes()->create(['business_id' => $businessA->id, 'name' => 'Cat A']);
+
+        // 1. Intento de inyección de business_id en creación de producto vía HTTP POST
+        $response = $this->actingAs($userA)->post('/products', [
+            'name' => 'Producto Aislado',
+            'sale_price' => '15.000',
+            'category_id' => $catA->id,
+            'business_id' => $businessB->id, // Intento de inyectar negocio B
+        ]);
+
+        $response->assertRedirect(route('products.index'));
+
+        // El producto debe pertenecer a Negocio A, nunca a Negocio B
+        $createdProduct = Product::withoutGlobalScopes()->where('name', 'Producto Aislado')->firstOrFail();
+        $this->assertEquals($businessA->id, $createdProduct->business_id);
+        $this->assertNotEquals($businessB->id, $createdProduct->business_id);
+
+        // 2. Blindaje a nivel de modelo: con TenantManager activo, asignación masiva de business_id es ignorada y sobreescrita
+        app(TenantManager::class)->set($businessA);
+        $directProduct = Product::create([
+            'name' => 'Producto Directo',
+            'sku' => 'SKU-DIR-01',
+            'sale_price' => 20000,
+            'category_id' => $catA->id,
+            'business_id' => $businessB->id,
+        ]);
+        $this->assertEquals($businessA->id, $directProduct->business_id);
+
+        // 3. Intento de inyección de business_id en creación de venta POS vía HTTP POST
+        $createdProduct->update(['stock' => 10]);
+        $customerA = Customer::withoutGlobalScopes()->create(['business_id' => $businessA->id, 'name' => 'Cliente A']);
+        $responseSale = $this->actingAs($userA)->post('/sales', [
+            'sale_date' => now()->toDateString(),
+            'discount_percentage' => 0,
+            'customer_id' => $customerA->id,
+            'payment_method' => 'cash',
+            'business_id' => $businessB->id, // Intento de inyectar negocio B
+            'items' => [
+                [
+                    'product_id' => $createdProduct->id,
+                    'quantity' => 1,
+                ],
+            ],
+            'payments' => [
+                [
+                    'method' => 'cash',
+                    'amount' => 15000,
+                ],
+            ],
+        ]);
+
+        $responseSale->assertRedirect();
+        $responseSale->assertSessionHasNoErrors();
+        $createdSale = Sale::withoutGlobalScopes()->where('customer_id', $customerA->id)->firstOrFail();
+        $this->assertEquals($businessA->id, $createdSale->business_id);
+        $this->assertNotEquals($businessB->id, $createdSale->business_id);
+
+        // 4. Blindaje a nivel de modelo en ventas: con TenantManager activo, asignación masiva de business_id es ignorada y sobreescrita
+        app(TenantManager::class)->set($businessA);
+        $directSale = Sale::create([
+            'user_id' => $userA->id,
+            'customer_id' => $customerA->id,
+            'invoice_number' => 'FAC-DIR-001',
+            'sale_date' => now(),
+            'subtotal' => 15000,
+            'total' => 15000,
+            'payment_method' => 'cash',
+            'status' => 'completed',
+            'business_id' => $businessB->id,
+        ]);
+        $this->assertEquals($businessA->id, $directSale->business_id);
+    }
 }

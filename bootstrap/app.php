@@ -15,7 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->validateCsrfTokens(except: [
-            'logout',
+            // Sin excepciones: todas las rutas mutacionales (incluyendo logout) exigen token CSRF
         ]);
 
         $middleware->appendToGroup('web', [
@@ -39,12 +39,18 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, $request) {
-            if ($request->is('logout')) {
-                \Illuminate\Support\Facades\Auth::guard('web')->logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
+            \Illuminate\Support\Facades\Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
 
-                return redirect()->route('login');
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'message' => 'Tu sesión ha expirado por inactividad. Por favor, inicia sesión nuevamente.',
+                    'redirect' => route('login'),
+                ], 419);
             }
+
+            return redirect()->route('login')
+                ->with('session_warning', 'Tu sesión ha expirado por inactividad. Por favor, inicia sesión nuevamente.');
         });
     })->create();

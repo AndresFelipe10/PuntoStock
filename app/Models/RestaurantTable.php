@@ -16,7 +16,6 @@ class RestaurantTable extends Model
     protected $table = 'restaurant_tables';
 
     protected $fillable = [
-        'business_id',
         'name',
         'capacity',
         'status',
