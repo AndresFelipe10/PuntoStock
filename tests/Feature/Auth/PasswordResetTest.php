@@ -3,9 +3,11 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use App\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -106,5 +108,48 @@ class PasswordResetTest extends TestCase
         if (Schema::hasTable('sessions')) {
             $this->assertFalse(DB::table('sessions')->where('id', 'stale-session-123')->exists());
         }
+    }
+
+    public function test_password_reset_email_renders_spanish_corporate_template(): void
+    {
+        Notification::fake();
+
+        $user = User::factory()->create([
+            'name' => 'Carlos Mendoza',
+            'email' => 'carlos.mendoza@example.com',
+        ]);
+
+        $response = $this->post('/forgot-password', [
+            'email' => 'carlos.mendoza@example.com',
+        ]);
+
+        $response->assertSessionHas('status');
+
+        Notification::assertSentTo($user, ResetPasswordNotification::class, function (ResetPasswordNotification $notification) use ($user) {
+            $mailMessage = $notification->toMail($user);
+
+            // Asunto oficial en español
+            $this->assertEquals('Restablecimiento de Contraseña — PuntoStock POS', $mailMessage->subject);
+
+            // Renderizado del HTML
+            $rendered = (string) $mailMessage->render();
+
+            // Textos requeridos en español
+            $this->assertStringContainsString('Recuperación de Acceso y Seguridad de Cuenta', $rendered);
+            $this->assertStringContainsString('¡Hola, Carlos Mendoza!', $rendered);
+            $this->assertStringContainsString('Restablecer mi Contraseña', $rendered);
+            $this->assertStringContainsString('carlos.mendoza@example.com', $rendered);
+            $this->assertStringContainsString($notification->token, $rendered);
+            $this->assertStringContainsString('Aviso de Seguridad:', $rendered);
+            $this->assertStringContainsString('minutos', $rendered);
+            $this->assertStringContainsString('lang="es"', $rendered);
+
+            // Ningún texto en inglés por defecto de Laravel
+            $this->assertStringNotContainsString('Reset Password Notification', $rendered);
+            $this->assertStringNotContainsString('You are receiving this email', $rendered);
+            $this->assertStringNotContainsString('If you did not request a password reset', $rendered);
+
+            return true;
+        });
     }
 }
