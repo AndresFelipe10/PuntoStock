@@ -50,6 +50,7 @@ class RestaurantOrder extends Model
         'pending_delivery_fee',
         'client_display_name',
         'waiter_name',
+        'clean_notes',
     ];
 
     protected function casts(): array
@@ -440,10 +441,6 @@ class RestaurantOrder extends Model
      */
     public function getWaiterNameAttribute(): string
     {
-        if ($this->order_type === 'table' && filled($this->customer_name)) {
-            return $this->customer_name;
-        }
-
         if ($this->relationLoaded('user') && $this->user) {
             return $this->user->name;
         }
@@ -456,27 +453,25 @@ class RestaurantOrder extends Model
      */
     public function getClientDisplayNameAttribute(): string
     {
-        if ($this->customer && filled($this->customer->name)) {
+        if ($this->relationLoaded('customer') && $this->customer && filled($this->customer->name)) {
+            $doc = $this->customer->document ?? $this->customer->identification_number;
+            if ($doc === '222222222222') {
+                return 'Consumidor Final';
+            }
             return $this->customer->name;
         }
-
-        $waiterName = $this->waiter_name;
-        $waiterFirst = explode(' ', trim($waiterName))[0] ?? '';
 
         $userName = $this->relationLoaded('user') && $this->user ? $this->user->name : ($this->user?->name ?? '');
         $userFirst = explode(' ', trim($userName))[0] ?? '';
 
         if (filled($this->customer_name)) {
             $cName = trim(mb_strtolower($this->customer_name));
-            $wName = trim(mb_strtolower($waiterName));
-            $wFirst = trim(mb_strtolower($waiterFirst));
             $uName = trim(mb_strtolower($userName));
             $uFirst = trim(mb_strtolower($userFirst));
 
             if (
                 $cName !== '' &&
-                $cName !== $wName &&
-                ($wFirst === '' || $cName !== $wFirst) &&
+                $cName !== 'consumidor final' &&
                 $cName !== $uName &&
                 ($uFirst === '' || $cName !== $uFirst)
             ) {
@@ -485,6 +480,21 @@ class RestaurantOrder extends Model
         }
 
         return 'Consumidor Final';
+    }
+
+    /**
+     * Get clean operational notes without [AUDITORÍA] suffixes.
+     */
+    public function getCleanNotesAttribute(): ?string
+    {
+        if (empty($this->notes)) {
+            return null;
+        }
+
+        $clean = preg_replace('/\[AUDITOR[IÍ]A\].*$/is', '', $this->notes);
+        $clean = trim($clean ?? '');
+
+        return $clean !== '' ? $clean : null;
     }
 
     /**

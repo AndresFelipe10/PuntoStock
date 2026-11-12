@@ -2,6 +2,7 @@
 
 namespace App\Services\Restaurant;
 
+use App\Exceptions\InsufficientStockException;
 use App\Models\Customer;
 use App\Models\InventoryMovement;
 use App\Models\Product;
@@ -44,6 +45,10 @@ class RestaurantOrderService
             }
 
             $orderNumber = $this->generateOrderNumber($businessId);
+
+            if (! empty($data['items']) && is_array($data['items'])) {
+                $this->validateStandardProductsStock($businessId, $data['items']);
+            }
 
             $order = RestaurantOrder::create([
                 'business_id' => $businessId,
@@ -92,6 +97,8 @@ class RestaurantOrderService
                     'order' => 'No se pueden agregar platos a una comanda que ya ha sido cerrada y facturada.',
                 ]);
             }
+
+            $this->validateStandardProductsStock($order->business_id, $itemsData, $lockedOrder);
 
             // Determinar tanda (batch_number)
             $hasPrintedItems = $lockedOrder->items()
@@ -223,6 +230,10 @@ class RestaurantOrderService
 
             $orderNumber = $this->generateOrderNumber($businessId);
 
+            if (! empty($data['items']) && is_array($data['items'])) {
+                $this->validateStandardProductsStock($businessId, $data['items']);
+            }
+
             $order = RestaurantOrder::create([
                 'business_id' => $businessId,
                 'table_id' => null,
@@ -247,6 +258,65 @@ class RestaurantOrderService
 
             return $order->fresh(['items.product', 'user', 'customer']);
         });
+    }
+
+    /**
+     * Validate that standard merchandise products have enough stock available before committing items.
+     * Non-standard products (dish, menu, plate) are completely ignored.
+     * Committed stock in active pending orders is accounted for.
+     *
+     * @param int $businessId
+     * @param array $itemsData
+     * @param RestaurantOrder|null $order
+     * @throws InsufficientStockException
+     */
+    public function validateStandardProductsStock(int $businessId, array $itemsData, ?RestaurantOrder $order = null): void
+    {
+        if (empty($itemsData)) {
+            return;
+        }
+
+        // 1. Agrupar y sumar las cantidades solicitadas por product_id
+        $groupedQuantities = [];
+        foreach ($itemsData as $item) {
+            if (empty($item['product_id'])) {
+                continue;
+            }
+            $productId = (int) $item['product_id'];
+            $qty = (float) ($item['quantity'] ?? 0);
+            if ($qty > 0) {
+                $groupedQuantities[$productId] = ($groupedQuantities[$productId] ?? 0) + $qty;
+            }
+        }
+
+        if (empty($groupedQuantities)) {
+            return;
+        }
+
+        $standardProducts = Product::where('business_id', $businessId)
+            ->whereIn('id', array_keys($groupedQuantities))
+            ->get()
+            ->filter(fn($p) => $p->isStandard())
+            ->keyBy('id');
+
+        if ($standardProducts->isEmpty()) {
+            return;
+        }
+
+        Product::attachAvailableStock($standardProducts, $businessId);
+
+        foreach ($standardProducts as $productId => $product) {
+            $requestedQty = (float) ($groupedQuantities[$productId] ?? 0);
+            $availableStock = (float) $product->available_stock;
+
+            if ($requestedQty > $availableStock) {
+                throw new InsufficientStockException(
+                    availableStock: $availableStock,
+                    requestedQuantity: $requestedQty,
+                    productName: $product->name
+                );
+            }
+        }
     }
 
     /**
@@ -932,6 +1002,9 @@ class RestaurantOrderService
             }
 
             // 5. Resolución de Cliente y Datos de Facturación
+            $defaultName = config('sales.default_customer_name', 'CONSUMIDOR FINAL');
+            $defaultDoc = config('sales.default_customer_document', '222222222222');
+
             $customerId = $input['customer_id'] ?? $lockedOrder->customer_id;
             $customerName = null;
             $customerDocument = null;
@@ -939,28 +1012,69 @@ class RestaurantOrderService
             if ($customerId) {
                 $customer = Customer::where('business_id', $lockedOrder->business_id)->find($customerId);
                 if ($customer) {
-                    $customerId = $customer->id;
-                    $customerName = $customer->name;
-                    $customerDocument = $customer->document ?? $customer->identification_number;
+                    $rawDoc = $customer->document ?? $customer->identification_number;
+                    $normName = strtoupper(trim((string) $customer->name));
+                    if ($rawDoc === '222222222222' && ($normName === '' || $normName === 'CONSUMIDOR FINAL')) {
+                        $customerId = null;
+                        $customerName = $defaultName;
+                        $customerDocument = $defaultDoc;
+                    } else {
+                        $customerId = $customer->id;
+                        $customerName = $customer->name;
+                        $customerDocument = $rawDoc ?? $defaultDoc;
+                    }
                 } else {
                     $customerId = null;
                 }
             }
 
             if (! $customerName) {
-                $customerName = ! empty($input['customer_name'])
+                $candidate = ! empty($input['customer_name'])
                     ? strip_tags(trim((string) $input['customer_name']))
-                    : ($lockedOrder->customer_name ?: config('sales.default_customer_name', 'CONSUMIDOR FINAL'));
-                $customerDocument = $lockedOrder->customer_document ?? config('sales.default_customer_document', '222222222222');
+                    : ($lockedOrder->customer_name ?: null);
+
+                $sellerName = $user?->name ?? '';
+                $sellerFirst = explode(' ', trim($sellerName))[0] ?? '';
+                $isSeller = false;
+                if ($candidate && $sellerName) {
+                    $cLower = mb_strtolower($candidate);
+                    $sLower = mb_strtolower($sellerName);
+                    $fLower = mb_strtolower($sellerFirst);
+                    if ($cLower === $sLower || ($fLower !== '' && $cLower === $fLower)) {
+                        $isSeller = true;
+                    }
+                }
+
+                if ($candidate && ! $isSeller && mb_strtolower($candidate) !== 'consumidor final') {
+                    $customerName = $candidate;
+                    $customerDocument = $lockedOrder->customer_document ?? $defaultDoc;
+                } else {
+                    $customerName = $defaultName;
+                    $customerDocument = $defaultDoc;
+                    $customerId = null;
+                }
             }
 
             // 6. Registro de Venta (Sale)
             $invoiceNumber = $this->generateInvoiceNumber($lockedOrder->business_id);
             $derivedPaymentMethod = count($payments) > 1 ? 'mixed' : $payments[0]['method'];
 
-            $notes = ! empty($input['notes'])
+            $baseNotes = ! empty($input['notes'])
                 ? strip_tags(trim((string) $input['notes']))
                 : "Pago parcial de platos en comanda {$lockedOrder->order_number}";
+
+            $cleanOrderNotes = $lockedOrder->clean_notes;
+            if ($cleanOrderNotes) {
+                if (! empty($input['notes'])) {
+                    $notes = ! str_contains($baseNotes, $cleanOrderNotes)
+                        ? "{$baseNotes} — Nota: {$cleanOrderNotes}"
+                        : $baseNotes;
+                } else {
+                    $notes = "Pago parcial de platos en comanda {$lockedOrder->order_number} — Nota: {$cleanOrderNotes}";
+                }
+            } else {
+                $notes = $baseNotes;
+            }
 
             $sale = Sale::create([
                 'business_id' => $lockedOrder->business_id,
@@ -1299,6 +1413,9 @@ class RestaurantOrderService
             // 5. Creación de la Venta (Sale)
             $invoiceNumber = $this->generateInvoiceNumber($lockedOrder->business_id);
 
+            $defaultName = config('sales.default_customer_name', 'CONSUMIDOR FINAL');
+            $defaultDoc = config('sales.default_customer_document', '222222222222');
+
             $customerId = $data['customer_id'] ?? $lockedOrder->customer_id;
             $customerName = null;
             $customerDocument = null;
@@ -1306,19 +1423,64 @@ class RestaurantOrderService
             if ($customerId) {
                 $customer = Customer::where('business_id', $lockedOrder->business_id)->find($customerId);
                 if ($customer) {
-                    $customerId = $customer->id;
-                    $customerName = $customer->name;
-                    $customerDocument = $customer->document ?? $customer->identification_number;
+                    $rawDoc = $customer->document ?? $customer->identification_number;
+                    $normName = strtoupper(trim((string) $customer->name));
+                    if ($rawDoc === '222222222222' && ($normName === '' || $normName === 'CONSUMIDOR FINAL')) {
+                        $customerId = null;
+                        $customerName = $defaultName;
+                        $customerDocument = $defaultDoc;
+                    } else {
+                        $customerId = $customer->id;
+                        $customerName = $customer->name;
+                        $customerDocument = $rawDoc ?? $defaultDoc;
+                    }
                 } else {
                     $customerId = null;
                 }
             }
 
             if (! $customerName) {
-                $customerName = ! empty($data['customer_name'])
+                $candidate = ! empty($data['customer_name'])
                     ? strip_tags(trim((string) $data['customer_name']))
-                    : ($lockedOrder->customer_name ?: config('sales.default_customer_name', 'CONSUMIDOR FINAL'));
-                $customerDocument = $lockedOrder->customer_document ?? config('sales.default_customer_document', '222222222222');
+                    : ($lockedOrder->customer_name ?: null);
+
+                $sellerName = $user?->name ?? '';
+                $sellerFirst = explode(' ', trim($sellerName))[0] ?? '';
+                $isSeller = false;
+                if ($candidate && $sellerName) {
+                    $cLower = mb_strtolower($candidate);
+                    $sLower = mb_strtolower($sellerName);
+                    $fLower = mb_strtolower($sellerFirst);
+                    if ($cLower === $sLower || ($fLower !== '' && $cLower === $fLower)) {
+                        $isSeller = true;
+                    }
+                }
+
+                if ($candidate && ! $isSeller && mb_strtolower($candidate) !== 'consumidor final') {
+                    $customerName = $candidate;
+                    $customerDocument = $lockedOrder->customer_document ?? $defaultDoc;
+                } else {
+                    $customerName = $defaultName;
+                    $customerDocument = $defaultDoc;
+                    $customerId = null;
+                }
+            }
+
+            $baseNotes = ! empty($data['notes'])
+                ? strip_tags(trim((string) $data['notes']))
+                : "Cobro final de comanda {$lockedOrder->order_number}";
+
+            $cleanOrderNotes = $lockedOrder->clean_notes;
+            if ($cleanOrderNotes) {
+                if (! empty($data['notes'])) {
+                    $saleNotes = ! str_contains($baseNotes, $cleanOrderNotes)
+                        ? "{$baseNotes} — Nota: {$cleanOrderNotes}"
+                        : $baseNotes;
+                } else {
+                    $saleNotes = "Cobro final de comanda {$lockedOrder->order_number} — Nota: {$cleanOrderNotes}";
+                }
+            } else {
+                $saleNotes = $baseNotes;
             }
 
             $sale = Sale::create([
@@ -1340,7 +1502,7 @@ class RestaurantOrderService
                 'total' => $expectedTotalToSettle,
                 'payment_method' => $derivedPaymentMethod,
                 'status' => 'completed',
-                'notes' => $data['notes'] ?? "Cobro final de comanda {$lockedOrder->order_number}",
+                'notes' => $saleNotes,
             ]);
 
             // 6. Registro de SalePayments

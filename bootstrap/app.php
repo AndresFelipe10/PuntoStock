@@ -38,6 +38,20 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (\App\Exceptions\InsufficientStockException $e, $request) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'message' => $e->getMessage(),
+                    'errors' => ['inventory' => [$e->getMessage()]],
+                ], 422);
+            }
+
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['inventory' => $e->getMessage()])
+                ->with('error', $e->getMessage());
+        });
+
         $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, $request) {
             \Illuminate\Support\Facades\Auth::guard('web')->logout();
             $request->session()->invalidate();

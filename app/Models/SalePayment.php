@@ -44,14 +44,24 @@ class SalePayment extends Model
     }
 
     /**
-     * Get the human-readable label of the payment method.
+     * Get the human-readable label of the payment method in Spanish.
      */
     public function getMethodLabelAttribute(): string
     {
-        if ($this->method instanceof PaymentMethod) {
-            return $this->method->label();
-        }
+        $raw = is_object($this->method) && property_exists($this->method, 'value')
+            ? (string) $this->method->value
+            : (string) $this->method;
 
-        return PaymentMethod::tryFrom((string) $this->method)?->label() ?? (string) $this->method;
+        $norm = strtolower(trim($raw));
+        return match ($norm) {
+            'cash', 'efectivo' => 'Efectivo',
+            'transfer', 'transferencia' => 'Transferencia',
+            'card', 'tarjeta', 'debit', 'credit_card' => 'Tarjeta',
+            'nequi' => 'Nequi',
+            'daviplata' => 'Daviplata',
+            'credit', 'credito' => 'Crédito',
+            'mixed', 'multiple', 'split' => 'Mixto',
+            default => filled($norm) ? ucfirst($norm) : 'Otro',
+        };
     }
 }

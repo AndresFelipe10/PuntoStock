@@ -80,17 +80,18 @@ class PosKeyboardAndErgonomicsTest extends TestCase
         ]);
     }
 
-    public function test_waiter_name_defaults_to_first_name_of_authenticated_user_in_order_create(): void
+    public function test_customer_name_starts_empty_and_authenticated_user_is_shown_as_badge(): void
     {
-        // En restaurante, el usuario Mariana Restrepo López debe ver 'Mariana' como mesero por defecto
+        // En restaurante, el usuario Mariana Restrepo López debe verse como indicador de usuario/mesero
+        // y el campo de cliente o referencia debe iniciar limpio
         $response = $this->actingAs($this->restaurantAdmin)
             ->withSession(['current_business_id' => $this->restaurantBusiness->id])
             ->get(route('restaurant.orders.create'));
 
         $response->assertStatus(200);
-        $response->assertSee('value="Mariana"', false);
-        $response->assertSee('placeholder="Ej: Mariana (puedes cambiarlo si es otro mesero)"', false);
-        $response->assertSee('btnClearWaiter');
+        $response->assertSee('Mariana Restrepo López');
+        $response->assertSee('Cliente / Referencia (Opcional)');
+        $response->assertDontSee('value="Mariana"', false);
     }
 
     public function test_customer_search_in_delivery_and_pos_has_keyboard_listeners_and_prevents_submit(): void
@@ -397,6 +398,65 @@ class PosKeyboardAndErgonomicsTest extends TestCase
 
         // 3. Modal estandarizado presente
         $response->assertSee('id="quickCustomerModal"', false);
+    }
+
+    public function test_api_products_search_returns_all_required_fields_and_sales_create_scripts_are_intact(): void
+    {
+        $category = Category::withoutGlobalScopes()->create([
+            'business_id' => $this->retailBusiness->id,
+            'name' => 'Bebidas Retail',
+        ]);
+
+        $product = Product::withoutGlobalScopes()->create([
+            'business_id' => $this->retailBusiness->id,
+            'category_id' => $category->id,
+            'name' => 'Jugo Natural Mango Cali',
+            'sku' => 'JUG-MANG-01',
+            'cost_price' => 3000,
+            'sale_price' => 7500,
+            'stock' => 20,
+            'min_stock' => 5,
+            'product_type' => 'standard',
+            'is_active' => true,
+        ]);
+
+        // 1. Probar endpoint api.products.search
+        $apiResponse = $this->actingAs($this->retailAdmin)
+            ->withSession(['current_business_id' => $this->retailBusiness->id])
+            ->getJson(route('api.products.search', ['q' => 'Mango']));
+
+        $apiResponse->assertOk();
+        $data = $apiResponse->json();
+        $this->assertNotEmpty($data);
+        $first = $data[0];
+
+        $this->assertArrayHasKey('id', $first);
+        $this->assertArrayHasKey('name', $first);
+        $this->assertArrayHasKey('price', $first);
+        $this->assertArrayHasKey('stock', $first);
+        $this->assertArrayHasKey('available_stock', $first);
+        $this->assertArrayHasKey('product_type', $first);
+        $this->assertArrayHasKey('sku', $first);
+
+        $this->assertEquals('Jugo Natural Mango Cali', $first['name']);
+        $this->assertEquals(7500, $first['price']);
+        $this->assertEquals(20, $first['stock']);
+        $this->assertEquals('standard', $first['product_type']);
+        $this->assertEquals('JUG-MANG-01', $first['sku']);
+
+        // 2. Verificar vista sales.create
+        $viewResponse = $this->actingAs($this->retailAdmin)
+            ->withSession(['current_business_id' => $this->retailBusiness->id])
+            ->get(route('sales.create'));
+
+        $viewResponse->assertOk();
+        $viewResponse->assertSee('localCatalog');
+        $viewResponse->assertSee('searchLocalProducts');
+        $viewResponse->assertSee('renderProductResults');
+        $viewResponse->assertSee('executeProductSearch');
+        $viewResponse->assertSee('addToCart');
+        $viewResponse->assertSee('showStockErrorBanner');
+        $viewResponse->assertSee('id="stock-error-container"', false);
     }
 }
 

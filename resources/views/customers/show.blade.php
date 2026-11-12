@@ -83,7 +83,42 @@
                                 <tr>
                                     <td class="fw-semibold font-monospace">{{ $sale->invoice_number }}</td>
                                     <td class="small text-secondary">{{ $sale->sale_date->format('d/m/Y') }}</td>
-                                    <td><span class="badge bg-light text-dark border">{{ $sale->payment_method }}</span></td>
+                                    <td>
+                                        @switch(strtolower($sale->payment_method ?? ''))
+                                            @case('cash')
+                                            @case('efectivo')
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">
+                                                    <i class="bi bi-cash me-1"></i> Efectivo
+                                                </span>
+                                                @break
+                                            @case('transfer')
+                                            @case('transferencia')
+                                            @case('nequi')
+                                            @case('daviplata')
+                                                <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill">
+                                                    <i class="bi bi-bank me-1"></i> {{ $sale->payment_method_label }}
+                                                </span>
+                                                @break
+                                            @case('card')
+                                            @case('tarjeta')
+                                            @case('debit')
+                                            @case('credit_card')
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">
+                                                    <i class="bi bi-credit-card me-1"></i> Tarjeta
+                                                </span>
+                                                @break
+                                            @case('mixed')
+                                            @case('split')
+                                                <span class="badge bg-warning-subtle text-dark border border-warning-subtle rounded-pill">
+                                                    <i class="bi bi-wallet2 me-1"></i> Mixto
+                                                </span>
+                                                @break
+                                            @default
+                                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">
+                                                    <i class="bi bi-wallet me-1"></i> {{ $sale->payment_method_label }}
+                                                </span>
+                                        @endswitch
+                                    </td>
                                     <td class="text-end fw-bold text-success">${{ number_format($sale->total, 2) }}</td>
                                 </tr>
                             @endforeach

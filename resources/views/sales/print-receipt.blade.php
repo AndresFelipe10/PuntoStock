@@ -226,11 +226,11 @@
         </div>
         <div class="row">
             <span>Cliente:</span>
-            <span>{{ $sale->customer_name ?? ($sale->customer ? $sale->customer->name : config('sales.default_customer_name')) }}</span>
+            <span>{{ $sale->display_customer_name }}</span>
         </div>
         <div class="row">
             <span>Doc/NIT:</span>
-            <span>{{ $sale->customer_document ?? ($sale->customer ? ($sale->customer->document ?? $sale->customer->identification_number) : config('sales.default_customer_document')) }}</span>
+            <span>{{ $sale->display_customer_document }}</span>
         </div>
         <div class="row">
             <span>Vendedor:</span>

@@ -40,7 +40,8 @@ class InventoryService
                     if ($previousStock < (float) $quantity) {
                         throw new InsufficientStockException(
                             availableStock: $previousStock,
-                            requestedQuantity: (float) $quantity
+                            requestedQuantity: (float) $quantity,
+                            productName: $lockedProduct->name
                         );
                     }
                     $newStock = round($previousStock - (float) $quantity, 3);

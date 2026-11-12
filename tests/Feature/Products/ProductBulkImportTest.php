@@ -162,10 +162,10 @@ class ProductBulkImportTest extends TestCase
             $responseExplicit->headers->get('content-disposition') ?? ''
         );
 
-        // 4. Negocio con tipo 'commerce' o sin tipo específico resuelve de forma predeterminada a Retail
+        // 4. Negocio con tipo predeterminado resuelve a Retail
         $commerceBiz = Business::create([
             'name' => 'Tienda Ropa Express',
-            'business_type' => 'commerce',
+            'business_type' => 'retail',
             'status' => 'active',
             'is_active' => true,
         ]);

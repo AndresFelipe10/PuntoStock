@@ -65,16 +65,16 @@
                 <div class="col-sm-6 col-md-3">
                     <span class="text-muted small d-block">Cliente</span>
                     <span class="fw-semibold">
-                        @if ($sale->customer)
+                        @if ($sale->customer && ($sale->customer->document ?? $sale->customer->identification_number) !== '222222222222')
                             <a href="{{ route('customers.show', $sale->customer) }}" class="text-decoration-none">
-                                {{ $sale->customer_name ?? $sale->customer->name }}
+                                {{ $sale->display_customer_name }}
                             </a>
                         @else
-                            <span>{{ $sale->customer_name ?? config('sales.default_customer_name') }}</span>
+                            <span>{{ $sale->display_customer_name }}</span>
                         @endif
                     </span>
-                    @if ($sale->customer_document)
-                        <span class="text-muted small d-block font-monospace">Doc: {{ $sale->customer_document }}</span>
+                    @if ($sale->display_customer_document)
+                        <span class="text-muted small d-block font-monospace">Doc: {{ $sale->display_customer_document }}</span>
                     @endif
                 </div>
                 <div class="col-sm-6 col-md-3">
@@ -258,7 +258,7 @@
                     </div>
                     <div>
                         <span class="text-muted">Cliente:</span>
-                        <strong class="text-dark">{{ $sale->customer_name ?? ($sale->customer?->name ?? 'Cliente general') }}</strong>
+                        <strong class="text-dark">{{ $sale->display_customer_name }}</strong>
                     </div>
                 </div>
                 <div class="alert alert-warning border-0 small mb-0 text-start">

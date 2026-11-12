@@ -985,7 +985,7 @@
                                 <i class="bi bi-person me-1 text-muted"></i>{{ $sale->user ? $sale->user->name : 'N/A' }}
                             </td>
                             <td class="small">
-                                {{ $sale->customer_name ?? ($sale->customer ? $sale->customer->name : config('sales.default_customer_name', 'CONSUMIDOR FINAL')) }}
+                                {{ $sale->display_customer_name ?? $sale->customer_name ?? ($sale->customer ? $sale->customer->name : config('sales.default_customer_name', 'Consumidor Final')) }}
                             </td>
                             <td>
                                 @if($sale->payments->isNotEmpty())

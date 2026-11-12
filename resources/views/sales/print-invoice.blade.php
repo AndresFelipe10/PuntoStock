@@ -137,9 +137,9 @@
         <div class="info-grid">
             <div class="info-box">
                 <h3>Cliente</h3>
-                <p class="value">{{ $sale->customer_name ?? ($sale->customer ? $sale->customer->name : config('sales.default_customer_name')) }}</p>
-                <p>Doc/NIT: {{ $sale->customer_document ?? ($sale->customer ? ($sale->customer->document ?? $sale->customer->identification_number) : config('sales.default_customer_document')) }}</p>
-                @if($sale->customer && $sale->customer->phone)
+                <p class="value">{{ $sale->display_customer_name }}</p>
+                <p>Doc/NIT: {{ $sale->display_customer_document }}</p>
+                @if($sale->customer && $sale->customer->phone && ($sale->customer->document ?? $sale->customer->identification_number) !== '222222222222')
                     <p>Tel: {{ $sale->customer->phone }}</p>
                 @endif
             </div>

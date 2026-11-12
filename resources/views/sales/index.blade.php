@@ -183,7 +183,7 @@
                             <span class="font-monospace fw-semibold text-primary">{{ $sale->invoice_number }}</span>
                         </td>
                         <td>{{ $sale->sale_date->format('d/m/Y H:i') }}</td>
-                        <td>{{ $sale->customer ? $sale->customer->name : 'Consumidor Final' }}</td>
+                        <td>{{ $sale->display_customer_name }}</td>
                         <td>{{ $sale->user->name }}</td>
                         <td class="text-center">
                             @switch($sale->payment_method)
@@ -266,7 +266,7 @@
             <div class="mb-3">
                 <div class="d-flex justify-content-between align-items-start mb-1">
                     <span class="text-muted small">Cliente:</span>
-                    <span class="fw-semibold text-dark text-end">{{ $sale->customer ? $sale->customer->name : 'Consumidor Final' }}</span>
+                    <span class="fw-semibold text-dark text-end">{{ $sale->display_customer_name }}</span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="text-muted small">Fecha / Hora:</span>

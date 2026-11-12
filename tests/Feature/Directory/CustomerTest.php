@@ -253,4 +253,53 @@ class CustomerTest extends TestCase
             'email' => null,
         ]);
     }
+
+    public function test_customer_show_displays_payment_methods_in_spanish_not_raw_english_code(): void
+    {
+        $customer = Customer::withoutGlobalScopes()->create([
+            'business_id' => $this->businessA->id,
+            'name' => 'Carlos Mendoza',
+            'document' => '1144005566',
+            'phone' => '3167788990',
+            'is_active' => true,
+        ]);
+
+        Sale::withoutGlobalScopes()->create([
+            'business_id' => $this->businessA->id,
+            'user_id' => $this->adminUser->id,
+            'customer_id' => $customer->id,
+            'customer_name' => $customer->name,
+            'customer_document' => $customer->document,
+            'invoice_number' => 'VTA-TEST-001',
+            'sale_date' => now('America/Bogota'),
+            'subtotal' => 50000,
+            'total' => 50000,
+            'payment_method' => 'cash',
+            'status' => 'completed',
+        ]);
+
+        Sale::withoutGlobalScopes()->create([
+            'business_id' => $this->businessA->id,
+            'user_id' => $this->adminUser->id,
+            'customer_id' => $customer->id,
+            'customer_name' => $customer->name,
+            'customer_document' => $customer->document,
+            'invoice_number' => 'VTA-TEST-002',
+            'sale_date' => now('America/Bogota'),
+            'subtotal' => 75000,
+            'total' => 75000,
+            'payment_method' => 'transfer',
+            'status' => 'completed',
+        ]);
+
+        $response = $this->actingAs($this->adminUser)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->get(route('customers.show', $customer));
+
+        $response->assertStatus(200);
+        $response->assertSee('Efectivo');
+        $response->assertSee('Transferencia');
+        $response->assertDontSee('<span class="badge bg-light text-dark border">cash</span>', false);
+        $response->assertDontSee('>cash<', false);
+    }
 }

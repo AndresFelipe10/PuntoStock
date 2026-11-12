@@ -90,12 +90,29 @@ class SaleController extends Controller
             ->orderBy('name')
             ->get();
 
+        Product::attachAvailableStock($products);
+
+        $catalogProducts = $products->map(function ($p) {
+            return [
+                'id' => $p->id,
+                'name' => $p->name,
+                'sku' => $p->sku,
+                'sale_price' => (float) $p->sale_price,
+                'price' => (float) $p->sale_price,
+                'stock' => (float) ($p->available_stock ?? $p->stock),
+                'available_stock' => (float) ($p->available_stock ?? $p->stock),
+                'product_type' => $p->product_type,
+                'is_standard' => $p->isStandard(),
+            ];
+        })->values();
+
         return view('sales.create', [
-            'defaultCustomerName' => config('sales.default_customer_name', 'CONSUMIDOR FINAL'),
+            'defaultCustomerName' => config('sales.default_customer_name', 'Consumidor Final'),
             'defaultCustomerDocument' => config('sales.default_customer_document', '222222222222'),
             'selectedCustomer' => $selectedCustomer,
             'paymentMethods' => PaymentMethod::cases(),
             'products' => $products,
+            'catalogProducts' => $catalogProducts,
         ]);
     }
 
@@ -113,7 +130,12 @@ class SaleController extends Controller
 
             return redirect()->route('sales.show', $sale)
                 ->with('status', "Venta {$sale->invoice_number} registrada exitosamente.");
-        } catch (InsufficientStockException|InvalidSaleItemException $e) {
+        } catch (InsufficientStockException $e) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['inventory' => $e->getMessage(), 'items' => $e->getMessage()])
+                ->with('error', $e->getMessage());
+        } catch (InvalidSaleItemException $e) {
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['items' => $e->getMessage()]);

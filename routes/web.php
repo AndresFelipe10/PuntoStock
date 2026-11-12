@@ -166,6 +166,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
         Route::get('/sales/{sale}/print/invoice', [SaleController::class, 'printInvoice'])->name('sales.print.invoice');
         Route::get('/sales/{sale}/print/receipt', [SaleController::class, 'printReceipt'])->name('sales.print.receipt');
+        Route::get('/sales/{sale}/print-receipt', [SaleController::class, 'printReceipt'])->name('sales.print-receipt');
 
         // Cuadre de Caja (Lectura para Administrador y Empleado)
         Route::get('/cash-register', [ReportController::class, 'cashRegister'])->name('reports.cash-register');

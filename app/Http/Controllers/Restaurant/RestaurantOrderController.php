@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Restaurant;
 
+use App\Exceptions\InsufficientStockException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Restaurant\AddOrderItemsRequest;
 use App\Http\Requests\Restaurant\CancelRestaurantOrderRequest;
@@ -93,10 +94,11 @@ class RestaurantOrderController extends Controller
             ->get();
 
         $products = Product::where('is_active', true)
-            ->where('product_type', 'dish')
             ->with('category')
             ->orderBy('name')
             ->get();
+
+        Product::attachAvailableStock($products);
 
         $selectedTableId = $request->query('table_id');
 
@@ -108,23 +110,30 @@ class RestaurantOrderController extends Controller
      */
     public function store(StoreRestaurantOrderRequest $request, RestaurantOrderService $orderService): RedirectResponse
     {
-        $userId = (int) (auth()->id() ?? $request->user()->id);
-        $order = $orderService->openTableOrder(
-            (int) session('current_business_id'),
-            $userId,
-            $request->validated()
-        );
+        try {
+            $userId = (int) (auth()->id() ?? $request->user()->id);
+            $order = $orderService->openTableOrder(
+                (int) session('current_business_id'),
+                $userId,
+                $request->validated()
+            );
 
-        $response = redirect()->route('restaurant.orders.show', $order)
-            ->with('success', "Comanda {$order->order_number} abierta exitosamente.");
+            $response = redirect()->route('restaurant.orders.show', $order)
+                ->with('success', "Comanda {$order->order_number} abierta exitosamente.");
 
-        if ($order->items()->exists()) {
-            $orderService->sendToKitchen($order);
-            $response->with('print_kitchen_ticket_id', $order->id)
-                ->with('print_kitchen_batch', 1);
+            if ($order->items()->exists()) {
+                $orderService->sendToKitchen($order);
+                $response->with('print_kitchen_ticket_id', $order->id)
+                    ->with('print_kitchen_batch', 1);
+            }
+
+            return $response;
+        } catch (InsufficientStockException $e) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['inventory' => $e->getMessage()])
+                ->with('error', $e->getMessage());
         }
-
-        return $response;
     }
 
     /**
@@ -136,14 +145,12 @@ class RestaurantOrderController extends Controller
 
         $order->load(['table', 'user', 'items.product', 'customer', 'sales']);
 
-        $productsQuery = Product::where('is_active', true);
-        if ($order->order_type === 'table') {
-            $productsQuery->where('product_type', 'dish');
-        }
-        $products = $productsQuery
+        $products = Product::where('is_active', true)
             ->with('category')
             ->orderBy('name')
             ->get();
+
+        Product::attachAvailableStock($products, $order->business_id);
 
         $groupedProducts = $products->groupBy(fn($p) => $p->category?->name ?? 'General / Sin Categoría');
 
@@ -171,13 +178,20 @@ class RestaurantOrderController extends Controller
                 ->with('error', 'No se pueden agregar platos a una comanda que ya ha sido cerrada y facturada.');
         }
 
-        $createdItems = $orderService->addItemsToOrder($order, $request->validated('items'));
-        $batchNumber = $createdItems->first()?->batch_number;
+        try {
+            $createdItems = $orderService->addItemsToOrder($order, $request->validated('items'));
+            $batchNumber = $createdItems->first()?->batch_number;
 
-        return redirect()->route('restaurant.orders.show', $order)
-            ->with('success', 'Platos agregados correctamente a la comanda.')
-            ->with('print_kitchen_ticket_id', $order->id)
-            ->with('print_kitchen_batch', $batchNumber);
+            return redirect()->route('restaurant.orders.show', $order)
+                ->with('success', 'Platos agregados correctamente a la comanda.')
+                ->with('print_kitchen_ticket_id', $order->id)
+                ->with('print_kitchen_batch', $batchNumber);
+        } catch (InsufficientStockException $e) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['inventory' => $e->getMessage()])
+                ->with('error', $e->getMessage());
+        }
     }
 
     /**
@@ -231,6 +245,8 @@ class RestaurantOrderController extends Controller
             ->orderBy('name')
             ->get();
 
+        Product::attachAvailableStock($products, $businessId);
+
         $customers = Customer::where('business_id', $businessId)
             ->where('is_active', true)
             ->orderBy('name', 'asc')
@@ -244,20 +260,27 @@ class RestaurantOrderController extends Controller
      */
     public function storeDelivery(StoreDeliveryOrderRequest $request, RestaurantOrderService $orderService): RedirectResponse
     {
-        $userId = (int) (auth()->id() ?? $request->user()->id);
-        $order = $orderService->openDeliveryOrTakeoutOrder(
-            (int) session('current_business_id'),
-            $userId,
-            $request->validated()
-        );
+        try {
+            $userId = (int) (auth()->id() ?? $request->user()->id);
+            $order = $orderService->openDeliveryOrTakeoutOrder(
+                (int) session('current_business_id'),
+                $userId,
+                $request->validated()
+            );
 
-        // Enviar automáticamente a cocina los platos agregados al registrar el pedido
-        $orderService->sendToKitchen($order);
+            // Enviar automáticamente a cocina los platos agregados al registrar el pedido
+            $orderService->sendToKitchen($order);
 
-        return redirect()->route('restaurant.orders.deliveries')
-            ->with('success', "Pedido {$order->order_number} registrado exitosamente.")
-            ->with('print_kitchen_ticket_id', $order->id)
-            ->with('print_kitchen_batch', 1);
+            return redirect()->route('restaurant.orders.deliveries')
+                ->with('success', "Pedido {$order->order_number} registrado exitosamente.")
+                ->with('print_kitchen_ticket_id', $order->id)
+                ->with('print_kitchen_batch', 1);
+        } catch (InsufficientStockException $e) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['inventory' => $e->getMessage()])
+                ->with('error', $e->getMessage());
+        }
     }
 
     /**
@@ -490,19 +513,26 @@ class RestaurantOrderController extends Controller
     ): RedirectResponse {
         Gate::authorize('update', $order);
 
-        $result = $orderService->paySplitItems(
-            order: $order,
-            data: $request->validated(),
-            user: $request->user()
-        );
+        try {
+            $result = $orderService->paySplitItems(
+                order: $order,
+                data: $request->validated(),
+                user: $request->user()
+            );
 
-        $msg = $result['is_fully_paid']
-            ? "Comanda {$order->order_number} saldada en su totalidad por división de cuenta. Mesa liberada."
-            : "Pago parcial de {$result['items_count']} plato(s) por $" . number_format($result['split_total'], 0, ',', '.') . " registrado exitosamente.";
+            $msg = $result['is_fully_paid']
+                ? "Comanda {$order->order_number} saldada en su totalidad por división de cuenta. Mesa liberada."
+                : "Pago parcial de {$result['items_count']} plato(s) por $" . number_format($result['split_total'], 0, ',', '.') . " registrado exitosamente.";
 
-        return redirect()->route('restaurant.orders.show', $order)
-            ->with('success', $msg)
-            ->with('print_split_ticket_id', $result['payment_id']);
+            return redirect()->route('restaurant.orders.show', $order)
+                ->with('success', $msg)
+                ->with('print_split_ticket_id', $result['payment_id']);
+        } catch (InsufficientStockException $e) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['inventory' => $e->getMessage()])
+                ->with('error', $e->getMessage());
+        }
     }
 
     /**
@@ -596,11 +626,18 @@ class RestaurantOrderController extends Controller
             abort(403);
         }
 
-        $sale = $orderService->billOrder($order, $request->all(), $request->user());
+        try {
+            $sale = $orderService->billOrder($order, $request->all(), $request->user());
 
-        return redirect()->route('restaurant.orders.show', $order)
-            ->with('success', "Comanda {$order->order_number} cobrada y liquidada exitosamente.")
-            ->with('print_sale_ticket_id', $sale->id);
+            return redirect()->route('restaurant.orders.show', $order)
+                ->with('success', "Comanda {$order->order_number} cobrada y liquidada exitosamente.")
+                ->with('print_sale_ticket_id', $sale->id);
+        } catch (InsufficientStockException $e) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['inventory' => $e->getMessage()])
+                ->with('error', $e->getMessage());
+        }
     }
 
     /**

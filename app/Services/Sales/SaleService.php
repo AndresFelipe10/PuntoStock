@@ -13,6 +13,7 @@ use App\Models\RestaurantTable;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\SalePayment;
+use App\Models\User;
 use App\Services\Inventory\InventoryService;
 use Illuminate\Support\Facades\DB;
 
@@ -148,9 +149,12 @@ class SaleService
             $invoiceNumber = $this->generateInvoiceNumber($businessId);
 
             // Resolve customer snapshot (or fallback to Consumidor Final)
+            $defaultName = config('sales.default_customer_name', 'CONSUMIDOR FINAL');
+            $defaultDoc = config('sales.default_customer_document', '222222222222');
+
             $customerId = $data['customer_id'] ?? null;
-            $customerName = config('sales.default_customer_name', 'CONSUMIDOR FINAL');
-            $customerDocument = config('sales.default_customer_document', '222222222222');
+            $customerName = null;
+            $customerDocument = null;
 
             if ($customerId !== null) {
                 $customer = \App\Models\Customer::withoutGlobalScopes()
@@ -158,9 +162,48 @@ class SaleService
                     ->find($customerId);
 
                 if ($customer) {
-                    $customerName = $customer->name;
-                    $customerDocument = $customer->document ?? $customer->identification_number ?? $customerDocument;
+                    $rawDoc = $customer->document ?? $customer->identification_number;
+                    $normName = strtoupper(trim((string) $customer->name));
+                    if ($rawDoc === '222222222222' && ($normName === '' || $normName === 'CONSUMIDOR FINAL')) {
+                        $customerId = null;
+                        $customerName = $defaultName;
+                        $customerDocument = $defaultDoc;
+                    } else {
+                        $customerId = $customer->id;
+                        $customerName = $customer->name;
+                        $customerDocument = $rawDoc ?? $defaultDoc;
+                    }
                 } else {
+                    $customerId = null;
+                }
+            }
+
+            if (! $customerName) {
+                $candidate = ! empty($data['customer_name'])
+                    ? strip_tags(trim((string) $data['customer_name']))
+                    : null;
+
+                $seller = User::find($userId);
+                $sellerName = $seller?->name ?? '';
+                $sellerFirst = explode(' ', trim($sellerName))[0] ?? '';
+                $isSeller = false;
+                if ($candidate && $sellerName) {
+                    $cLower = mb_strtolower($candidate);
+                    $sLower = mb_strtolower($sellerName);
+                    $fLower = mb_strtolower($sellerFirst);
+                    if ($cLower === $sLower || ($fLower !== '' && $cLower === $fLower)) {
+                        $isSeller = true;
+                    }
+                }
+
+                if ($candidate && ! $isSeller && mb_strtolower($candidate) !== 'consumidor final') {
+                    $customerName = $candidate;
+                    $customerDocument = ! empty($data['customer_document'])
+                        ? trim((string) $data['customer_document'])
+                        : $defaultDoc;
+                } else {
+                    $customerName = $defaultName;
+                    $customerDocument = $defaultDoc;
                     $customerId = null;
                 }
             }

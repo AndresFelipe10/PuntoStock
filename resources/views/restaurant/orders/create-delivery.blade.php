@@ -101,6 +101,9 @@
                         </button>
                     </div>
 
+                    {{-- Slot contextual para alerta de stock (Mobile-First, no altera la barra superior) --}}
+                    <div id="stock-error-container" class="w-100"></div>
+
                     @php
                         $groupedProducts = $products->groupBy(fn($p) => $p->category?->name ?? 'General / Sin Categoría');
                     @endphp
@@ -123,8 +126,27 @@
                                         @foreach($groupedProducts as $categoryName => $catProducts)
                                             <optgroup label="{{ $categoryName }}">
                                                 @foreach($catProducts as $prod)
-                                                    <option value="{{ $prod->id }}" data-category="{{ $categoryName }}" data-price="{{ $prod->sale_price }}">
-                                                        {{ $prod->name }} (${{ number_format($prod->sale_price, 2) }})
+                                                    @php
+                                                        $isStd = $prod->isStandard();
+                                                        $availStock = (float) ($prod->available_stock ?? $prod->stock);
+                                                        $availStockFormatted = (float)$availStock == (int)$availStock ? (int)$availStock : $availStock;
+                                                    @endphp
+                                                    <option value="{{ $prod->id }}" 
+                                                            data-category="{{ $categoryName }}" 
+                                                            data-price="{{ $prod->sale_price }}"
+                                                            data-name="{{ $prod->name }}"
+                                                            data-is-standard="{{ $isStd ? '1' : '0' }}"
+                                                            data-stock="{{ $availStock }}"
+                                                            {{ ($isStd && $availStock <= 0) ? 'disabled' : '' }}>
+                                                        @if($isStd)
+                                                            @if($availStock <= 0)
+                                                                {{ $prod->name }} — ${{ number_format($prod->sale_price, 0, ',', '.') }}  ·  Agotado
+                                                            @else
+                                                                {{ $prod->name }} — ${{ number_format($prod->sale_price, 0, ',', '.') }}  ·  {{ $availStockFormatted }} disp.
+                                                            @endif
+                                                        @else
+                                                            {{ $prod->name }} — ${{ number_format($prod->sale_price, 0, ',', '.') }}
+                                                        @endif
                                                     </option>
                                                 @endforeach
                                             </optgroup>
@@ -132,7 +154,10 @@
                                     </select>
                                 </div>
                                 <div class="col-6 col-md-2">
-                                    <label class="form-label small fw-semibold">Cantidad <span class="text-danger">*</span></label>
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <label class="form-label small fw-semibold mb-0">Cantidad <span class="text-danger">*</span></label>
+                                        <span class="stock-hint badge rounded-pill bg-light text-secondary border d-none" style="font-size: 0.7rem; font-weight: 500;"></span>
+                                    </div>
                                     <div class="input-group input-group-sm" style="max-width: 130px;">
                                         <button type="button" class="btn btn-outline-secondary btn-qty-minus fw-bold px-2">−</button>
                                         <input type="number" name="items[0][quantity]" class="form-control text-center input-qty input-stepper" value="1" min="1" max="9999" required>
@@ -186,8 +211,27 @@
                     @foreach($groupedProducts as $categoryName => $catProducts)
                         <optgroup label="{{ $categoryName }}">
                             @foreach($catProducts as $prod)
-                                <option value="{{ $prod->id }}" data-category="{{ $categoryName }}" data-price="{{ $prod->sale_price }}">
-                                    {{ $prod->name }} (${{ number_format($prod->sale_price, 2) }})
+                                @php
+                                    $isStd = $prod->isStandard();
+                                    $availStock = (float) ($prod->available_stock ?? $prod->stock);
+                                    $availStockFormatted = (float)$availStock == (int)$availStock ? (int)$availStock : $availStock;
+                                @endphp
+                                <option value="{{ $prod->id }}" 
+                                        data-category="{{ $categoryName }}" 
+                                        data-price="{{ $prod->sale_price }}"
+                                        data-name="{{ $prod->name }}"
+                                        data-is-standard="{{ $isStd ? '1' : '0' }}"
+                                        data-stock="{{ $availStock }}"
+                                        {{ ($isStd && $availStock <= 0) ? 'disabled' : '' }}>
+                                    @if($isStd)
+                                        @if($availStock <= 0)
+                                            {{ $prod->name }} — ${{ number_format($prod->sale_price, 0, ',', '.') }}  ·  Agotado
+                                        @else
+                                            {{ $prod->name }} — ${{ number_format($prod->sale_price, 0, ',', '.') }}  ·  {{ $availStockFormatted }} disp.
+                                        @endif
+                                    @else
+                                        {{ $prod->name }} — ${{ number_format($prod->sale_price, 0, ',', '.') }}
+                                    @endif
                                 </option>
                             @endforeach
                         </optgroup>
@@ -195,7 +239,10 @@
                 </select>
             </div>
             <div class="col-6 col-md-2">
-                <label class="form-label small fw-semibold">Cantidad <span class="text-danger">*</span></label>
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label class="form-label small fw-semibold mb-0">Cantidad <span class="text-danger">*</span></label>
+                    <span class="stock-hint badge rounded-pill bg-light text-secondary border d-none" style="font-size: 0.7rem; font-weight: 500;"></span>
+                </div>
                 <div class="input-group input-group-sm" style="max-width: 130px;">
                     <button type="button" class="btn btn-outline-secondary btn-qty-minus fw-bold px-2">−</button>
                     <input type="number" name="items[INDEX][quantity]" class="form-control text-center input-qty input-stepper" value="1" min="1" max="9999" required>
@@ -294,12 +341,127 @@ document.addEventListener('DOMContentLoaded', function () {
         syncOrderType();
     }
 
+    function showStockErrorBanner(productName, availableStock, requestedQuantity, targetContainer) {
+        let container = targetContainer || document.getElementById('stock-error-container');
+        if (!container) {
+            const form = document.getElementById('deliveryOrderForm') || document.querySelector('form');
+            if (form) {
+                container = form.querySelector('#stock-error-container');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = 'stock-error-container';
+                    container.className = 'w-100 mb-3';
+                    const itemsContainer = document.getElementById('items-container') || form.firstElementChild;
+                    if (itemsContainer) {
+                        itemsContainer.parentNode.insertBefore(container, itemsContainer);
+                    } else {
+                        form.prepend(container);
+                    }
+                }
+            }
+        }
+
+        const availableFormatted = (parseFloat(availableStock) == parseInt(availableStock)) ? parseInt(availableStock) : availableStock;
+        const requestedFormatted = (parseFloat(requestedQuantity) == parseInt(requestedQuantity)) ? parseInt(requestedQuantity) : requestedQuantity;
+
+        let banner = document.getElementById('stock-error-banner');
+        if (banner) {
+            const textSpan = banner.querySelector('.stock-error-message');
+            if (textSpan) {
+                textSpan.textContent = `Stock insuficiente para '${productName}'. Existencias disponibles: ${availableFormatted}, Cantidad solicitada: ${requestedFormatted}.`;
+            }
+            banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return;
+        }
+
+        banner = document.createElement('div');
+        banner.id = 'stock-error-banner';
+        banner.className = 'alert shadow-sm';
+        banner.setAttribute('role', 'alert');
+        banner.style.cssText = 'width: 100%; box-sizing: border-box; background-color: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #ef4444; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; color: #991b1b; font-size: 0.875rem; line-height: 1.4;';
+
+        banner.innerHTML = `
+            <div style="display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-exclamation-triangle-fill flex-shrink-0" viewBox="0 0 16 16" style="margin-top: 2px; color: #ef4444;">
+                    <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                </svg>
+                <div style="flex: 1; min-width: 0; word-break: break-word;">
+                    <strong style="display: block; font-weight: 700; margin-bottom: 2px;">Error al procesar:</strong>
+                    <span class="stock-error-message">Stock insuficiente para '${productName}'. Existencias disponibles: ${availableFormatted}, Cantidad solicitada: ${requestedFormatted}.</span>
+                </div>
+            </div>
+            <button type="button" class="btn-close" style="font-size: 10px; padding: 4px; margin: 0; opacity: 0.7; flex-shrink: 0;" aria-label="Close" onclick="this.closest('#stock-error-banner').remove();"></button>
+        `;
+
+        if (container) {
+            container.appendChild(banner);
+        }
+        banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function updateStockHint(row, opt) {
+        const stockHint = row.querySelector('.stock-hint');
+        const qtyInput = row.querySelector('.input-qty');
+        if (!stockHint) return;
+
+        if (!opt || !opt.value) {
+            stockHint.classList.add('d-none');
+            if (qtyInput) qtyInput.removeAttribute('max');
+            return;
+        }
+
+        const isStd = opt.getAttribute('data-is-standard') === '1';
+        const stock = parseFloat(opt.getAttribute('data-stock') || '0');
+        const formattedStock = (stock == parseInt(stock)) ? parseInt(stock) : stock;
+
+        if (isStd) {
+            stockHint.textContent = stock <= 0 ? 'Agotado' : `${formattedStock} disp.`;
+            stockHint.className = stock <= 0 
+                ? 'stock-hint badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle ms-1'
+                : 'stock-hint badge rounded-pill bg-light text-secondary border ms-1';
+            stockHint.classList.remove('d-none');
+            if (qtyInput) {
+                qtyInput.setAttribute('max', stock > 0 ? stock : 1);
+            }
+        } else {
+            stockHint.classList.add('d-none');
+            if (qtyInput) {
+                qtyInput.removeAttribute('max');
+            }
+        }
+    }
+
+    function checkRowStock(row, requestedQty) {
+        const select = row.querySelector('.product-select');
+        if (!select || select.selectedIndex < 0) return requestedQty;
+        const opt = select.options[select.selectedIndex];
+        if (!opt || !opt.value) return requestedQty;
+
+        const isStd = opt.getAttribute('data-is-standard') === '1';
+        if (!isStd) return requestedQty;
+
+        const stock = parseFloat(opt.getAttribute('data-stock') || '0');
+        const name = opt.getAttribute('data-name') || opt.textContent.trim();
+
+        if (requestedQty > stock) {
+            const maxAllowed = Math.max(1, Math.floor(stock));
+            showStockErrorBanner(name, stock, requestedQty);
+            return maxAllowed;
+        }
+        return requestedQty;
+    }
+
     // Manejo de botones de cantidad (+ / -)
     function attachQuantityControls(row) {
         const btnMinus = row.querySelector('.btn-qty-minus');
         const btnPlus = row.querySelector('.btn-qty-plus');
         const qtyInput = row.querySelector('.input-qty');
+        const select = row.querySelector('.product-select');
         if (!btnMinus || !btnPlus || !qtyInput) return;
+
+        if (select && select.selectedIndex >= 0) {
+            updateStockHint(row, select.options[select.selectedIndex]);
+        }
 
         btnMinus.addEventListener('click', function () {
             let val = parseInt(qtyInput.value) || 1;
@@ -311,10 +473,28 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         btnPlus.addEventListener('click', function () {
-            let val = parseInt(qtyInput.value) || 1;
-            qtyInput.value = val + 1;
+            let val = (parseInt(qtyInput.value) || 1) + 1;
+            const adjusted = checkRowStock(row, val);
+            qtyInput.value = adjusted;
             qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
             qtyInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        qtyInput.addEventListener('change', function () {
+            let val = parseInt(this.value) || 1;
+            if (val < 1) val = 1;
+            const adjusted = checkRowStock(row, val);
+            this.value = adjusted;
+        });
+
+        qtyInput.addEventListener('input', function () {
+            let val = parseInt(this.value);
+            if (!isNaN(val)) {
+                const adjusted = checkRowStock(row, val);
+                if (adjusted !== val) {
+                    this.value = adjusted;
+                }
+            }
         });
     }
 
@@ -338,13 +518,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 const rawText = opt.textContent.trim();
                 const category = opt.getAttribute('data-category') || opt.closest('optgroup')?.label || 'General';
                 const price = opt.getAttribute('data-price') || '';
-                const cleanName = rawText.replace(/\s*\(\$[\d,\.]+\)\s*$/, '').trim();
+                const cleanName = opt.getAttribute('data-name') || rawText.replace(/\s*—.*$/, '').trim();
+                const isStandard = opt.getAttribute('data-is-standard') === '1';
+                const stock = parseFloat(opt.getAttribute('data-stock') || '0');
+                const disabled = opt.disabled;
                 productsList.push({
                     id: opt.value,
                     fullName: rawText,
                     name: cleanName,
                     category: category,
-                    price: price
+                    price: price,
+                    isStandard: isStandard,
+                    stock: stock,
+                    disabled: disabled
                 });
             }
         });
@@ -392,25 +578,49 @@ document.addEventListener('DOMContentLoaded', function () {
                 itemBtn.style.minHeight = '44px';
                 itemBtn.dataset.index = idx;
 
+                if (p.isStandard && p.disabled) {
+                    itemBtn.classList.add('disabled', 'opacity-50');
+                    itemBtn.disabled = true;
+                }
+
                 const leftDiv = document.createElement('div');
-                leftDiv.className = 'pe-2';
+                leftDiv.className = 'pe-2 d-flex align-items-center gap-2 text-truncate';
 
                 const nameSpan = document.createElement('span');
-                nameSpan.className = 'fw-semibold text-dark d-block';
+                nameSpan.className = 'fw-semibold text-dark';
                 nameSpan.textContent = p.name;
                 leftDiv.appendChild(nameSpan);
+
+                const priceSpan = document.createElement('span');
+                priceSpan.className = 'text-muted small';
+                priceSpan.textContent = p.price ? '$' + Number(p.price).toLocaleString('es-CO', {maximumFractionDigits: 0}) : '';
+                leftDiv.appendChild(priceSpan);
 
                 if (p.category) {
                     const catBadge = document.createElement('span');
                     catBadge.className = 'badge bg-light text-secondary border';
-                    catBadge.style.fontSize = '0.72rem';
+                    catBadge.style.fontSize = '0.7rem';
                     catBadge.textContent = p.category;
                     leftDiv.appendChild(catBadge);
                 }
 
                 const rightDiv = document.createElement('div');
-                rightDiv.className = 'text-end fw-bold text-primary small';
-                rightDiv.textContent = p.price ? '$' + Number(p.price).toLocaleString('es-CO', {minimumFractionDigits: 2}) : '';
+                rightDiv.className = 'flex-shrink-0';
+
+                if (p.isStandard) {
+                    const stockBadge = document.createElement('span');
+                    const formattedStk = (p.stock == parseInt(p.stock)) ? parseInt(p.stock) : p.stock;
+                    if (p.stock <= 0) {
+                        stockBadge.className = 'badge rounded-pill border';
+                        stockBadge.style.cssText = 'background-color: #fef2f2; color: #dc2626; border-color: #fecaca; font-size: 0.75rem; padding: 3px 9px; font-weight: 500;';
+                        stockBadge.textContent = 'Agotado';
+                    } else {
+                        stockBadge.className = 'badge rounded-pill border';
+                        stockBadge.style.cssText = 'background-color: #f1f5f9; color: #475569; border-color: #e2e8f0; font-size: 0.75rem; padding: 3px 9px; font-weight: 500;';
+                        stockBadge.textContent = `${formattedStk} disp.`;
+                    }
+                    rightDiv.appendChild(stockBadge);
+                }
 
                 itemBtn.appendChild(leftDiv);
                 itemBtn.appendChild(rightDiv);
@@ -511,8 +721,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
         select.addEventListener('change', function () {
             const opt = select.options[select.selectedIndex];
+            updateStockHint(row, opt);
             if (opt && opt.value) {
                 searchInput.value = opt.textContent.trim();
+                const qtyInput = row.querySelector('.input-qty');
+                if (qtyInput) {
+                    let currentVal = parseInt(qtyInput.value) || 1;
+                    const adjusted = checkRowStock(row, currentVal);
+                    qtyInput.value = adjusted;
+                }
             }
             dropdown.classList.add('d-none');
             highlightedIndex = -1;

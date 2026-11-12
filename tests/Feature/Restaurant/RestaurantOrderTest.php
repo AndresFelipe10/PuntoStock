@@ -205,7 +205,7 @@ class RestaurantOrderTest extends TestCase
         $respMax->assertSessionHasErrors(['guest_count']);
     }
 
-    public function test_salon_orders_create_only_exposes_dishes_and_excludes_merchandise_standard(): void
+    public function test_salon_orders_create_exposes_dishes_and_merchandise_with_available_stock(): void
     {
         $merchandise = Product::create([
             'business_id' => $this->restaurant->id,
@@ -226,7 +226,8 @@ class RestaurantOrderTest extends TestCase
 
         $response->assertOk();
         $response->assertSee($this->dish->name);
-        $response->assertDontSee($merchandise->name);
+        $response->assertSee($merchandise->name);
+        $response->assertSee('15 disp.');
     }
 }
 

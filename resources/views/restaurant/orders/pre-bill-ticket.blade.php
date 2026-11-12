@@ -329,6 +329,13 @@
             </tbody>
         </table>
 
+        @if(!empty($order->clean_notes))
+            <div style="border-top: 1px dashed #000; padding: 6px 0; margin-top: 4px; font-size: 12px;">
+                <strong>Notas de la Orden:</strong><br>
+                {{ $order->clean_notes }}
+            </div>
+        @endif
+
         {{-- Totales --}}
         @php
             $itemsSubtotal = $order->itemsSubtotal();

@@ -44,14 +44,19 @@
             <div class="card card-custom p-4 mb-4">
                 <h5 class="fw-bold mb-3 border-bottom pb-2"><i class="bi bi-cart-plus me-2 text-primary"></i>Agregar Productos</h5>
 
+                <div id="stock-error-container" class="w-100"></div>
+
                 {{-- Selector Dual Sincronizado: Buscador Rápido y Dropdown de Catálogo --}}
                 <div class="row g-2 mb-3">
-                    <div class="col-md-6">
+                    <div class="col-md-6 position-relative">
                         <div class="input-group">
                             <span class="input-group-text bg-light border-end-0" id="searchScanIconContainer"><i class="bi bi-upc-scan text-muted"></i></span>
                             <input type="text" id="productSearch" class="form-control border-start-0"
                                    placeholder="Buscar por nombre o SKU..." autocomplete="off">
                         </div>
+                        {{-- Resultados flotantes de búsqueda inmediata --}}
+                        <div id="searchResults" class="list-group position-absolute w-100 shadow-lg border rounded-3 overflow-auto" 
+                             style="display:none; max-height:280px; z-index: 1050; top: 100%; left: 0; background: #fff;"></div>
                     </div>
                     <div class="col-md-6">
                         <div class="input-group">
@@ -67,13 +72,24 @@
                                 @if($menuProducts->isNotEmpty() && $merchandiseProducts->isNotEmpty())
                                     <optgroup label="📦 Mercancía de Mostrador">
                                         @foreach($merchandiseProducts as $product)
+                                            @php
+                                                $stockVal = (float) ($product->available_stock ?? $product->stock);
+                                                $stockFormatted = (float)$stockVal == (int)$stockVal ? (int)$stockVal : $stockVal;
+                                            @endphp
                                             <option value="{{ $product->id }}" 
                                                     data-id="{{ $product->id }}"
                                                     data-name="{{ $product->name }}"
                                                     data-sku="{{ $product->sku }}"
                                                     data-price="{{ $product->sale_price }}"
-                                                    data-stock="{{ $product->stock }}">
-                                                {{ $product->name }} - ${{ number_format($product->sale_price, 0, ',', '.') }} (Stock: {{ $product->formatted_stock ?? $product->stock }})
+                                                    data-is-standard="1"
+                                                    data-stock="{{ $stockVal }}"
+                                                    title="Stock: {{ $stockFormatted }}"
+                                                    {{ $stockVal <= 0 ? 'disabled' : '' }}>
+                                                @if($stockVal <= 0)
+                                                    {{ $product->name }} — ${{ number_format($product->sale_price, 0, ',', '.') }}  ·  Agotado
+                                                @else
+                                                    {{ $product->name }} — ${{ number_format($product->sale_price, 0, ',', '.') }}  ·  {{ $stockFormatted }} disp.
+                                                @endif
                                             </option>
                                         @endforeach
                                     </optgroup>
@@ -84,21 +100,38 @@
                                                     data-name="{{ $product->name }}"
                                                     data-sku="{{ $product->sku }}"
                                                     data-price="{{ $product->sale_price }}"
-                                                    data-stock="{{ $product->stock }}">
-                                                {{ $product->name }} - ${{ number_format($product->sale_price, 0, ',', '.') }} (Carta / Cocina)
+                                                    data-is-standard="0"
+                                                    data-stock="{{ (float) ($product->available_stock ?? $product->stock) }}">
+                                                {{ $product->name }} — ${{ number_format($product->sale_price, 0, ',', '.') }}
                                             </option>
                                         @endforeach
                                     </optgroup>
                                 @else
                                     <optgroup label="{{ $menuProducts->isNotEmpty() ? '🍽️ Carta / Menú de Cocina' : '📦 Mercancía de Mostrador' }}">
                                         @foreach($allProds as $product)
+                                            @php
+                                                $isStd = $product->isStandard();
+                                                $stockVal = (float) ($product->available_stock ?? $product->stock);
+                                                $stockFormatted = (float)$stockVal == (int)$stockVal ? (int)$stockVal : $stockVal;
+                                            @endphp
                                             <option value="{{ $product->id }}" 
                                                     data-id="{{ $product->id }}"
                                                     data-name="{{ $product->name }}"
                                                     data-sku="{{ $product->sku }}"
                                                     data-price="{{ $product->sale_price }}"
-                                                    data-stock="{{ $product->stock }}">
-                                                {{ $product->name }} - ${{ number_format($product->sale_price, 0, ',', '.') }} {{ (($product->product_type ?? '') === 'dish' || ($product->product_type ?? '') === 'menu') ? '(Carta / Cocina)' : '(Stock: ' . ($product->formatted_stock ?? $product->stock) . ')' }}
+                                                    data-is-standard="{{ $isStd ? '1' : '0' }}"
+                                                    data-stock="{{ $stockVal }}"
+                                                    title="Stock: {{ $stockFormatted }}"
+                                                    {{ ($isStd && $stockVal <= 0) ? 'disabled' : '' }}>
+                                                @if($isStd)
+                                                    @if($stockVal <= 0)
+                                                        {{ $product->name }} — ${{ number_format($product->sale_price, 0, ',', '.') }}  ·  Agotado
+                                                    @else
+                                                        {{ $product->name }} — ${{ number_format($product->sale_price, 0, ',', '.') }}  ·  {{ $stockFormatted }} disp.
+                                                    @endif
+                                                @else
+                                                    {{ $product->name }} — ${{ number_format($product->sale_price, 0, ',', '.') }}
+                                                @endif
                                             </option>
                                         @endforeach
                                     </optgroup>
@@ -107,9 +140,6 @@
                         </div>
                     </div>
                 </div>
-
-                {{-- Resultados de búsqueda --}}
-                <div id="searchResults" class="list-group mb-3" style="display:none; max-height:220px; overflow-y:auto;"></div>
 
                 {{-- Tabla del carrito --}}
                 <div class="table-responsive">
@@ -344,6 +374,19 @@ document.addEventListener('DOMContentLoaded', function () {
     let highlightedProductIndex = -1;
     const scanIconContainer = document.getElementById('searchScanIconContainer');
 
+    // Catálogo precargado para filtrado reactivo instantáneo (0ms)
+    const localCatalog = @json($catalogProducts ?? []);
+
+    function searchLocalProducts(query) {
+        const q = query.trim().toLowerCase();
+        if (!q) return [];
+        return localCatalog.filter(p => {
+            const name = (p.name || '').toLowerCase();
+            const sku = (p.sku || '').toLowerCase();
+            return name.includes(q) || sku.includes(q);
+        }).slice(0, 15);
+    }
+
     function setProductLoading(isLoading) {
         if (!scanIconContainer) return;
         if (isLoading) {
@@ -365,25 +408,54 @@ document.addEventListener('DOMContentLoaded', function () {
 
         products.forEach((p, idx) => {
             const inCart = cart.find(c => c.product_id === p.id);
-            const disabled = inCart ? 'opacity-50' : '';
-            const label = inCart ? ' <span class="badge bg-secondary-subtle text-secondary border font-monospace ms-1" style="font-size:0.7rem;">En carrito</span>' : '';
+            const isStandard = p.is_standard !== undefined ? Boolean(p.is_standard) : (p.product_type ? p.product_type === 'standard' : true);
+            const stockVal = parseFloat(p.available_stock !== undefined ? p.available_stock : (p.stock || 0));
+            const isOutOfStock = isStandard && stockVal <= 0;
+            const disabled = inCart || isOutOfStock ? 'opacity-50 disabled' : '';
+
+            let stockBadgeHtml = '';
+            if (isStandard) {
+                const stockFmt = Number.isInteger(stockVal) ? stockVal : stockVal.toFixed(2);
+                if (isOutOfStock) {
+                    stockBadgeHtml = '<span class="badge bg-danger-subtle text-danger border border-danger-subtle mt-1" style="font-size:0.72rem;">Agotado</span>';
+                } else {
+                    stockBadgeHtml = `<span class="badge bg-light text-secondary border mt-1" style="font-size:0.72rem;">${stockFmt} disp.</span>`;
+                }
+            } else {
+                stockBadgeHtml = '<span class="badge bg-success-subtle text-success border border-success-subtle mt-1" style="font-size:0.72rem;">Plato</span>';
+            }
+
+            const itemPrice = p.sale_price !== undefined ? p.sale_price : (p.price !== undefined ? p.price : 0);
+
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = `list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2 product-result-item ${disabled}`;
+            btn.className = `list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2 px-3 product-result-item ${disabled}`;
+            if (isOutOfStock) {
+                btn.disabled = true;
+            }
             btn.dataset.index = idx;
             btn.innerHTML = `
                 <div class="text-truncate me-2">
-                    <span class="fw-semibold">${escapeHtml(p.name)}</span>
+                    <span class="fw-semibold text-dark">${escapeHtml(p.name)}</span>
                     <small class="text-muted ms-2 font-monospace">${escapeHtml(p.sku || '')}</small>
-                    ${label}
+                    ${inCart ? '<span class="badge bg-secondary-subtle text-secondary border font-monospace ms-1" style="font-size:0.7rem;">En carrito</span>' : ''}
                 </div>
-                <div class="text-end flex-shrink-0">
-                    <span class="fw-bold text-primary font-monospace">$${formatNumber(p.sale_price)}</span>
-                    <small class="text-muted d-block" style="font-size:0.75rem;">Stock: ${p.stock}</small>
+                <div class="text-end flex-shrink-0 d-flex flex-column align-items-end justify-content-center">
+                    <span class="fw-bold text-primary font-monospace">$${formatNumber(itemPrice)}</span>
+                    ${stockBadgeHtml}
                 </div>
             `;
-            if (!inCart) {
-                btn.addEventListener('click', () => addToCart(p));
+            if (!inCart && !isOutOfStock) {
+                btn.addEventListener('click', () => {
+                    addToCart({
+                        ...p,
+                        sale_price: itemPrice,
+                        price: itemPrice,
+                        is_standard: isStandard,
+                        stock: stockVal,
+                        available_stock: stockVal
+                    });
+                });
             }
             searchResults.appendChild(btn);
         });
@@ -398,7 +470,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const trimmed = query.trim();
-        if (trimmed.length < 2) {
+        if (trimmed.length < 1) {
             searchResults.style.display = 'none';
             searchResults.innerHTML = '';
             setProductLoading(false);
@@ -446,18 +518,26 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ── Búsqueda reactiva con debounce de 180ms ──
+    // ── Búsqueda reactiva inmediata (0ms local + debounce servidor) ──
     searchInput.addEventListener('input', function () {
         clearTimeout(searchTimeout);
         const q = this.value;
-        if (q.trim().length < 2) {
+        const trimmed = q.trim();
+        if (trimmed.length < 1) {
             if (activeProductAbort) {
                 activeProductAbort.abort();
                 activeProductAbort = null;
             }
             searchResults.style.display = 'none';
+            searchResults.innerHTML = '';
             setProductLoading(false);
             return;
+        }
+
+        // Búsqueda instantánea en catálogo local en memoria (0ms)
+        const localMatches = searchLocalProducts(trimmed);
+        if (localMatches.length > 0) {
+            renderProductResults(localMatches, trimmed);
         }
 
         searchTimeout = setTimeout(() => {
@@ -487,6 +567,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (searchResults.style.display === 'block' && highlightedProductIndex >= 0 && items[highlightedProductIndex]) {
                 items[highlightedProductIndex].click();
+            } else if (searchResults.style.display === 'block' && items.length > 0) {
+                items[0].click();
             } else {
                 executeProductSearch(this.value, true);
             }
@@ -514,26 +596,86 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    // ── Banner de Error de Stock Corporativo (Cero window.alert) ──
+    function showStockErrorBanner(productName, availableStock, requestedQuantity, targetForm) {
+        const errorContainer = document.getElementById('stock-error-container');
+        let existingBanner = document.getElementById('stock-error-banner');
+        if (existingBanner) {
+            const listMsg = existingBanner.querySelector('.stock-error-msg');
+            if (listMsg) {
+                listMsg.textContent = `Stock insuficiente para '${productName}'. Existencias disponibles: ${availableStock}, Cantidad solicitada: ${requestedQuantity}.`;
+            }
+            return;
+        }
+
+        const banner = document.createElement('div');
+        banner.id = 'stock-error-banner';
+        banner.className = 'alert shadow-sm d-flex align-items-start gap-3 mb-3 w-100';
+        banner.style.cssText = 'background-color: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #ef4444; color: #991b1b; border-radius: 8px; padding: 12px 16px; position: relative;';
+        banner.setAttribute('role', 'alert');
+
+        banner.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" viewBox="0 0 16 16">
+                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+            </svg>
+            <div class="flex-grow-1">
+                <div class="fw-bold mb-1" style="font-size: 14px;">Error al procesar:</div>
+                <ul class="mb-0 ps-3" style="font-size: 13px; list-style-type: disc;">
+                    <li class="stock-error-msg">Stock insuficiente para '${productName}'. Existencias disponibles: ${availableStock}, Cantidad solicitada: ${requestedQuantity}.</li>
+                </ul>
+            </div>
+            <button type="button" class="btn-close" style="font-size: 10px; margin-top: 2px;" aria-label="Close" onclick="this.closest('#stock-error-banner').remove();"></button>
+        `;
+
+        if (errorContainer) {
+            errorContainer.appendChild(banner);
+            banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return;
+        }
+
+        const form = targetForm || document.getElementById('saleForm') || document.querySelector('form');
+        if (form) {
+            form.prepend(banner);
+            banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
     // ── Cart management ──
     function addToCart(product) {
         const prodId = parseInt(product.id || product.product_id);
+        const isStandard = product.is_standard !== undefined 
+            ? Boolean(product.is_standard) 
+            : (product.product_type ? (product.product_type !== 'dish' && product.product_type !== 'menu') : true);
+        const prodStock = parseFloat(product.available_stock !== undefined ? product.available_stock : (product.stock || 0));
+        const prodName = product.name || 'Producto';
+        const unitPrice = parseFloat(product.sale_price !== undefined ? product.sale_price : (product.price !== undefined ? product.price : product.unit_price)) || 0;
+
         const existing = cart.find(c => c.product_id === prodId);
         if (existing) {
-            if (existing.quantity < existing.stock) {
-                existing.quantity += 1;
+            if (existing.is_standard && (existing.quantity + 1 > existing.stock)) {
+                showStockErrorBanner(existing.name, existing.stock, existing.quantity + 1);
+                return;
             }
+            existing.quantity += 1;
         } else {
+            if (isStandard && prodStock <= 0) {
+                showStockErrorBanner(prodName, prodStock, 1);
+                return;
+            }
             cart.push({
                 product_id: prodId,
-                name: product.name,
-                sku: product.sku,
-                stock: parseFloat(product.stock),
+                name: prodName,
+                sku: product.sku || '',
+                stock: prodStock,
+                is_standard: isStandard,
                 quantity: 1,
-                unit_price: parseFloat(product.sale_price !== undefined ? product.sale_price : product.unit_price),
+                unit_price: unitPrice,
             });
         }
         searchInput.value = '';
         searchResults.style.display = 'none';
+        searchResults.innerHTML = '';
+        highlightedProductIndex = -1;
         renderCart();
     }
     window.addProductToSale = addToCart;
@@ -550,13 +692,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 name: selectedOpt.dataset.name,
                 sku: selectedOpt.dataset.sku,
                 sale_price: parseFloat(selectedOpt.dataset.price),
+                price: parseFloat(selectedOpt.dataset.price),
                 stock: parseFloat(selectedOpt.dataset.stock),
+                available_stock: parseFloat(selectedOpt.dataset.stock),
+                is_standard: selectedOpt.dataset.isStandard === '1',
             };
 
             addToCart(productData);
 
             // Resetear el selector a la opción inicial tras agregarlo
             this.selectedIndex = 0;
+            this.value = '';
 
             // Transferir el foco al input de cantidad del ítem en la tabla del carrito
             const lastQtyInput = cartBody.querySelector('tr:last-child .qty-input');
@@ -595,7 +741,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     <input type="hidden" name="items[${index}][unit_price]" value="${item.unit_price}">
                 </td>
                 <td class="text-center">
-                    <span class="badge ${item.stock <= 0 ? 'bg-danger' : item.stock <= 5 ? 'bg-warning text-dark' : 'bg-light text-dark border'} rounded-pill">${item.stock}</span>
+                    ${item.is_standard
+                        ? `<span class="badge ${item.stock <= 0 ? 'bg-danger' : item.stock <= 5 ? 'bg-warning text-dark' : 'bg-light text-dark border'} rounded-pill">${item.stock}</span>`
+                        : `<span class="badge bg-light text-secondary border rounded-pill">Carta</span>`
+                    }
                 </td>
                 <td class="text-center">
                     <div class="input-group input-group-sm justify-content-center mx-auto" style="max-width: 125px;">
@@ -604,8 +753,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         </button>
                         <input type="number" name="items[${index}][quantity]" value="${item.quantity}"
                                class="form-control form-control-sm text-center qty-input px-1 fw-bold font-monospace"
-                               min="1" max="${item.stock}" data-index="${index}" style="width:45px;">
-                        <button type="button" class="btn btn-outline-secondary btn-qty-plus px-2" data-index="${index}" title="Aumentar cantidad" ${item.quantity >= item.stock ? 'disabled' : ''}>
+                               min="1" ${item.is_standard ? `max="${item.stock}"` : ''} data-index="${index}" style="width:45px;">
+                        <button type="button" class="btn btn-outline-secondary btn-qty-plus px-2" data-index="${index}" title="Aumentar cantidad" ${(item.is_standard && item.quantity >= item.stock) ? 'disabled' : ''}>
                             <i class="bi bi-plus-lg"></i>
                         </button>
                     </div>
@@ -636,10 +785,13 @@ document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('.btn-qty-plus').forEach(btn => {
             btn.addEventListener('click', function () {
                 const idx = parseInt(this.dataset.index);
-                if (cart[idx].quantity < cart[idx].stock) {
-                    cart[idx].quantity += 1;
-                    renderCart();
+                const item = cart[idx];
+                if (item.is_standard && (item.quantity + 1 > item.stock)) {
+                    showStockErrorBanner(item.name, item.stock, item.quantity + 1);
+                    return;
                 }
+                item.quantity += 1;
+                renderCart();
             });
         });
 
@@ -647,11 +799,15 @@ document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('.qty-input').forEach(input => {
             input.addEventListener('change', function () {
                 const idx = parseInt(this.dataset.index);
+                const item = cart[idx];
                 let val = parseInt(this.value) || 1;
                 if (val < 1) val = 1;
-                if (val > cart[idx].stock) val = cart[idx].stock;
+                if (item.is_standard && val > item.stock) {
+                    showStockErrorBanner(item.name, item.stock, val);
+                    val = Math.max(1, Math.floor(item.stock));
+                }
                 this.value = val;
-                cart[idx].quantity = val;
+                item.quantity = val;
                 renderCart();
             });
         });

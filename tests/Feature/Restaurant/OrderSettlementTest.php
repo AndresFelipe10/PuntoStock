@@ -836,5 +836,473 @@ class OrderSettlementTest extends TestCase
             'El mensaje de éxito de comanda cobrada debe renderizarse exactamente 1 sola vez en el HTML.'
         );
     }
+
+    /**
+     * Test: Validación preventiva de stock rechaza productos estándar con stock insuficiente al abrir comanda (sin error 500).
+     */
+    public function test_preventive_stock_validation_rejects_standard_products_with_insufficient_stock_when_opening_order(): void
+    {
+        $this->tableA->update(['status' => 'available']);
+
+        $category = Category::create([
+            'business_id' => $this->businessA->id,
+            'name' => 'Bebidas Embotelladas',
+        ]);
+
+        $cocaCola = Product::create([
+            'business_id' => $this->businessA->id,
+            'category_id' => $category->id,
+            'name' => 'Coca Cola 400ml',
+            'sku' => 'BEB-CC-01',
+            'product_type' => 'standard',
+            'cost_price' => 2000,
+            'sale_price' => 4500,
+            'stock' => 2,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->from(route('restaurant.orders.create'))
+            ->post(route('restaurant.orders.store'), [
+                'table_id' => $this->tableA->id,
+                'customer_name' => 'Cliente Mesa Preventiva',
+                'items' => [
+                    [
+                        'product_id' => $cocaCola->id,
+                        'quantity' => 5,
+                    ],
+                ],
+            ]);
+
+        // Debe redirigir de vuelta con error limpio en sesión (302, NO 500)
+        $response->assertStatus(302);
+        $response->assertRedirect(route('restaurant.orders.create'));
+        $response->assertSessionHasErrors(['inventory']);
+        $response->assertSessionHas('error');
+
+        $errorMessage = session('error');
+        $this->assertStringContainsString("Stock insuficiente para 'Coca Cola 400ml'", $errorMessage);
+        $this->assertStringContainsString("Existencias disponibles: 2", $errorMessage);
+        $this->assertStringContainsString("Cantidad solicitada: 5", $errorMessage);
+
+        // La orden no debe haberse creado
+        $this->assertDatabaseMissing('restaurant_orders', [
+            'business_id' => $this->businessA->id,
+            'customer_name' => 'Cliente Mesa Preventiva',
+        ]);
+    }
+
+    /**
+     * Test: Validación preventiva rechaza agregar productos estándar a una orden existente si supera el stock.
+     */
+    public function test_preventive_stock_validation_rejects_standard_products_when_adding_items_to_existing_order(): void
+    {
+        $category = Category::create([
+            'business_id' => $this->businessA->id,
+            'name' => 'Bebidas Embotelladas',
+        ]);
+
+        $jugoHit = Product::create([
+            'business_id' => $this->businessA->id,
+            'category_id' => $category->id,
+            'name' => 'Jugo Hit Mora',
+            'sku' => 'BEB-HIT-01',
+            'product_type' => 'standard',
+            'cost_price' => 1500,
+            'sale_price' => 3500,
+            'stock' => 1,
+            'is_active' => true,
+        ]);
+
+        $order = RestaurantOrder::create([
+            'business_id' => $this->businessA->id,
+            'user_id' => $this->adminA->id,
+            'table_id' => $this->tableA->id,
+            'order_number' => 'ORD-0105',
+            'order_type' => 'table',
+            'status' => 'open',
+            'subtotal' => 25000,
+            'total' => 25000,
+        ]);
+
+        RestaurantOrderItem::create([
+            'business_id' => $this->businessA->id,
+            'order_id' => $order->id,
+            'product_id' => $this->dishPasta->id,
+            'quantity' => 1,
+            'unit_price' => 25000,
+            'subtotal' => 25000,
+            'status' => 'served',
+            'payment_status' => 'pending',
+            'batch_number' => 1,
+        ]);
+
+        $initialItemCount = RestaurantOrderItem::where('order_id', $order->id)->count();
+
+        $response = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->from(route('restaurant.orders.show', $order))
+            ->post(route('restaurant.orders.items.store', $order), [
+                'items' => [
+                    [
+                        'product_id' => $jugoHit->id,
+                        'quantity' => 2,
+                    ],
+                ],
+            ]);
+
+        $response->assertStatus(302);
+        $response->assertRedirect(route('restaurant.orders.show', $order));
+        $response->assertSessionHasErrors(['inventory']);
+        $response->assertSessionHas('error');
+
+        $errorMessage = session('error');
+        $this->assertStringContainsString("Stock insuficiente para 'Jugo Hit Mora'", $errorMessage);
+        $this->assertStringContainsString("Existencias disponibles: 1", $errorMessage);
+        $this->assertStringContainsString("Cantidad solicitada: 2", $errorMessage);
+
+        // No debe haberse agregado ningún nuevo ítem
+        $this->assertEquals($initialItemCount, RestaurantOrderItem::where('order_id', $order->id)->count());
+    }
+
+    /**
+     * Test: Los productos de tipo Menú / Cocina (dish / menu) pueden ordenarse y cobrarse libremente con stock 0.
+     */
+    public function test_dish_and_menu_products_can_be_ordered_and_billed_with_zero_stock(): void
+    {
+        $this->tableA->update(['status' => 'available']);
+
+        $category = Category::create([
+            'business_id' => $this->businessA->id,
+            'name' => 'Cocina Caliente',
+        ]);
+
+        $dishZeroStock = Product::create([
+            'business_id' => $this->businessA->id,
+            'category_id' => $category->id,
+            'name' => 'Sancocho Especial de Gallina',
+            'sku' => 'PLT-SANC-01',
+            'product_type' => 'dish',
+            'cost_price' => 8000,
+            'sale_price' => 28000,
+            'stock' => 0,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->post(route('restaurant.orders.store'), [
+                'table_id' => $this->tableA->id,
+                'customer_name' => 'Comensal Sancocho',
+                'items' => [
+                    [
+                        'product_id' => $dishZeroStock->id,
+                        'quantity' => 3,
+                    ],
+                ],
+            ]);
+
+        $order = RestaurantOrder::where('business_id', $this->businessA->id)
+            ->where('customer_name', 'Comensal Sancocho')
+            ->first();
+
+        $this->assertNotNull($order, 'La orden con plato de stock 0 debe crearse exitosamente.');
+        $response->assertRedirect(route('restaurant.orders.show', $order));
+
+        // Proceder a cobrar y liquidar la comanda
+        $chargeResponse = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->post(route('restaurant.orders.charge', $order), [
+                'payments' => [
+                    ['method' => 'cash', 'amount' => 84000, 'cash_received' => 84000, 'change_given' => 0],
+                ],
+            ]);
+
+        $chargeResponse->assertRedirect(route('restaurant.orders.show', $order));
+
+        $order->refresh();
+        $this->assertEquals('billed', $order->status);
+
+        $sale = Sale::where('restaurant_order_id', $order->id)->first();
+        $this->assertNotNull($sale);
+        $this->assertEquals(84000.0, (float) $sale->total);
+    }
+
+    /**
+     * Test: Trazabilidad de extremo a extremo de las notas generales de la comanda en tirillas y venta final.
+     */
+    public function test_general_order_notes_traceability_end_to_end_in_tickets_and_fiscal_sale(): void
+    {
+        $generalNote = 'Prueba general de notas de la orden y despacho prioritario';
+        $deliveryNote = 'Timbrar fuerte en el portón verde';
+        $itemNote = 'Sin cebolla y término medio';
+
+        $response = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->post(route('restaurant.orders.store-delivery'), [
+                'order_type' => 'delivery',
+                'customer_name' => 'Andrea García',
+                'delivery_phone' => '3123456789',
+                'delivery_address' => 'Carrera 100 # 16-20 Apto 402',
+                'delivery_notes' => $deliveryNote,
+                'notes' => $generalNote,
+                'delivery_fee' => 4000,
+                'items' => [
+                    [
+                        'product_id' => $this->dishPasta->id,
+                        'quantity' => 1,
+                        'notes' => $itemNote,
+                    ],
+                ],
+            ]);
+
+        $order = RestaurantOrder::where('business_id', $this->businessA->id)
+            ->where('customer_name', 'Andrea García')
+            ->first();
+
+        $this->assertNotNull($order);
+        $this->assertStringContainsString($generalNote, $order->notes);
+        $this->assertEquals($generalNote, $order->clean_notes);
+
+        // 1. Verificar visualización en Tirilla de Despacho (dispatch-ticket)
+        $dispatchTicketResp = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->get(route('restaurant.orders.dispatch-ticket', $order));
+
+        $dispatchTicketResp->assertOk();
+        $dispatchHtml = $dispatchTicketResp->getContent();
+        $this->assertStringContainsString($generalNote, $dispatchHtml, 'La tirilla de despacho debe mostrar las notas generales.');
+        $this->assertStringContainsString($deliveryNote, $dispatchHtml, 'La tirilla de despacho debe mostrar las indicaciones de entrega.');
+        $this->assertStringContainsString($itemNote, $dispatchHtml, 'La tirilla de despacho debe mostrar las notas de ítem.');
+
+        // 2. Verificar visualización en Tirilla de Cocina (kitchen-ticket)
+        $kitchenTicketResp = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->get(route('restaurant.orders.kitchen-ticket', $order));
+
+        $kitchenTicketResp->assertOk();
+        $kitchenHtml = $kitchenTicketResp->getContent();
+        $this->assertStringContainsString($generalNote, $kitchenHtml, 'La comanda de cocina debe mostrar las notas generales.');
+
+        // 3. Cobrar comanda y verificar transferencia a Sale y Comprobante Fiscal
+        $totalToPay = 25000 + 4000;
+        $chargeResponse = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->post(route('restaurant.orders.charge', $order), [
+                'payments' => [
+                    ['method' => 'cash', 'amount' => $totalToPay, 'cash_received' => 30000, 'change_given' => 1000],
+                ],
+            ]);
+
+        $chargeResponse->assertRedirect(route('restaurant.orders.show', $order));
+
+        $sale = Sale::where('restaurant_order_id', $order->id)->first();
+        $this->assertNotNull($sale, 'Debe generarse una venta al cobrar la comanda.');
+        $this->assertStringContainsString($generalNote, $sale->notes, 'La venta fiscal debe preservar las notas generales de la comanda.');
+
+        // 4. Verificar que el comprobante de venta final muestre las notas
+        $saleReceiptResp = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->get(route('sales.print.receipt', $sale));
+
+        $saleReceiptResp->assertOk();
+        $this->assertStringContainsString($generalNote, $saleReceiptResp->getContent(), 'El comprobante/tirilla fiscal debe mostrar las notas generales.');
+
+        $saleShowResp = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->get(route('sales.show', $sale));
+
+        $saleShowResp->assertOk();
+        $this->assertStringContainsString($generalNote, $saleShowResp->getContent(), 'La vista de venta debe mostrar las notas generales.');
+    }
+
+    /**
+     * Test: el stock disponible mostrado y validado resta las unidades comprometidas en órdenes abiertas.
+     */
+    public function test_available_stock_in_order_forms_and_validation_subtracts_committed_stock_from_open_orders(): void
+    {
+        // 1. Crear producto estándar con stock físico = 17
+        $drink = Product::create([
+            'business_id' => $this->businessA->id,
+            'name' => 'Cerveza Club Colombia Dorada',
+            'sku' => 'BEV-CERV-01',
+            'product_type' => 'standard',
+            'cost_price' => 3500,
+            'sale_price' => 7000,
+            'stock' => 17,
+            'is_active' => true,
+        ]);
+
+        // 2. Crear una mesa disponible y una orden de salón abierta que comprometa 1 unidad (no cobrada)
+        $tableFree = RestaurantTable::create([
+            'business_id' => $this->businessA->id,
+            'name' => 'Mesa Libre 10',
+            'capacity' => 4,
+            'status' => 'available',
+            'is_active' => true,
+        ]);
+
+        $orderService = app(RestaurantOrderService::class);
+        $openOrder = $orderService->openTableOrder($this->businessA->id, $this->adminA->id, [
+            'table_id' => $tableFree->id,
+            'guest_count' => 2,
+            'items' => [
+                [
+                    'product_id' => $drink->id,
+                    'quantity' => 1,
+                    'notes' => 'Bien fría',
+                ],
+            ],
+        ]);
+
+        $this->assertContains($openOrder->status, ['open', 'in_kitchen']);
+        $this->assertNull($openOrder->sale_id);
+
+        // 3. Consultar las vistas de creación de salón y domicilio
+        $salonResp = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->get(route('restaurant.orders.create'));
+        $salonResp->assertOk();
+        $salonHtml = $salonResp->getContent();
+        // Debe mostrar 16 disp. y data-stock="16"
+        $this->assertStringContainsString('data-stock="16"', $salonHtml);
+        $this->assertStringContainsString('16 disp.', $salonHtml);
+        $this->assertStringNotContainsString('17 disp.', $salonHtml);
+
+        $deliveryResp = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->get(route('restaurant.orders.create-delivery'));
+        $deliveryResp->assertOk();
+        $deliveryHtml = $deliveryResp->getContent();
+        $this->assertStringContainsString('data-stock="16"', $deliveryHtml);
+        $this->assertStringContainsString('16 disp.', $deliveryHtml);
+        $this->assertStringNotContainsString('17 disp.', $deliveryHtml);
+
+        // 4. Consultar API de búsqueda de productos
+        $searchResp = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->getJson('/api/products/search?q=Cerveza');
+        $searchResp->assertOk();
+        $searchJson = $searchResp->json();
+        $this->assertNotEmpty($searchJson);
+        $found = collect($searchJson)->firstWhere('id', $drink->id);
+        $this->assertNotNull($found);
+        $this->assertEquals(16, $found['stock']);
+
+        // 5. Intentar pedir 17 unidades en una nueva orden -> debe fallar con error de validación
+        $postFailResp = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->post(route('restaurant.orders.store-delivery'), [
+                'order_type' => 'delivery',
+                'customer_name' => 'Cliente Sediento',
+                'delivery_phone' => '3001234567',
+                'delivery_address' => 'Calle 5 # 10-20',
+                'items' => [
+                    [
+                        'product_id' => $drink->id,
+                        'quantity' => 17,
+                    ],
+                ],
+            ]);
+        $postFailResp->assertSessionHasErrors(['inventory']);
+        $this->assertStringContainsString('Existencias disponibles: 16, Cantidad solicitada: 17', session('errors')->first('inventory'));
+
+        // 6. Pedir exactamente 16 unidades -> debe tener éxito
+        $postSuccessResp = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->post(route('restaurant.orders.store-delivery'), [
+                'order_type' => 'delivery',
+                'customer_name' => 'Cliente Sediento',
+                'delivery_phone' => '3001234567',
+                'delivery_address' => 'Calle 5 # 10-20',
+                'items' => [
+                    [
+                        'product_id' => $drink->id,
+                        'quantity' => 16,
+                    ],
+                ],
+            ]);
+        $postSuccessResp->assertSessionHasNoErrors();
+    }
+
+    /**
+     * Verifica que al abrir y cobrar una comanda de mesa con el usuario 'Pedrito' sin cliente,
+     * el cliente sea canónicamente 'Consumidor Final' y el vendedor sea 'Pedrito'.
+     */
+    public function test_table_order_billing_sets_canonical_consumidor_final_and_retains_waiter_pedrito(): void
+    {
+        $waiterPedrito = User::factory()->create([
+            'name' => 'Pedrito',
+            'email' => 'pedrito@restaurantecali.com',
+        ]);
+        $this->businessA->users()->attach($waiterPedrito->id, ['role_id' => $this->employeeRole->id, 'is_active' => true]);
+
+        // 1. Abrir comanda desde mesas sin especificar cliente
+        $order = RestaurantOrder::create([
+            'business_id' => $this->businessA->id,
+            'user_id' => $waiterPedrito->id,
+            'table_id' => $this->tableA->id,
+            'order_number' => 'ORD-0019',
+            'order_type' => 'table',
+            'status' => 'open',
+            'customer_name' => null,
+            'customer_document' => null,
+            'subtotal' => 25000,
+            'total' => 25000,
+        ]);
+
+        RestaurantOrderItem::create([
+            'business_id' => $this->businessA->id,
+            'order_id' => $order->id,
+            'product_id' => $this->dishPasta->id,
+            'quantity' => 1,
+            'unit_price' => 25000,
+            'subtotal' => 25000,
+            'status' => 'served',
+        ]);
+
+        // 2. Cobrar la comanda con Pedrito autenticado
+        $response = $this->actingAs($waiterPedrito)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->post(route('restaurant.orders.bill', $order), [
+                'payments' => [
+                    [
+                        'method' => 'cash',
+                        'amount' => 25000,
+                        'cash_received' => 30000,
+                    ],
+                ],
+            ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect();
+
+        // 3. Verificar el modelo Sale
+        $sale = Sale::where('restaurant_order_id', $order->id)->firstOrFail();
+        $this->assertEquals('CONSUMIDOR FINAL', $sale->customer_name);
+        $this->assertEquals('222222222222', $sale->customer_document);
+        $this->assertEquals('CONSUMIDOR FINAL', $sale->display_customer_name);
+        $this->assertEquals($waiterPedrito->id, $sale->user_id);
+        $this->assertEquals('Pedrito', $sale->user->name);
+
+        // 4. Verificar sales.show (Comprobante de venta)
+        $showResponse = $this->actingAs($waiterPedrito)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->get(route('sales.show', $sale));
+
+        $showResponse->assertStatus(200);
+        $showResponse->assertSee('CONSUMIDOR FINAL');
+        $showResponse->assertSee('Pedrito');
+
+        // 5. Verificar sales.print-receipt (Ticket de venta / Tirilla)
+        $receiptResponse = $this->actingAs($waiterPedrito)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->get(route('sales.print-receipt', $sale));
+
+        $receiptResponse->assertStatus(200);
+        $receiptResponse->assertSee('CONSUMIDOR FINAL');
+        $receiptResponse->assertSee('Pedrito');
+    }
 }
 

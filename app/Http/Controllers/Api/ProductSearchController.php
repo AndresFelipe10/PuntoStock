@@ -30,10 +30,21 @@ class ProductSearchController extends Controller
             });
         }
 
-        $products = $query->select(['id', 'name', 'sku', 'sale_price', 'stock'])
+        $products = $query->select(['id', 'name', 'sku', 'sale_price', 'stock', 'product_type'])
             ->orderBy('name')
             ->limit(15)
             ->get();
+
+        Product::attachAvailableStock($products);
+
+        $products->each(function ($p) {
+            $p->append(['price', 'available_stock']);
+            $p->setAttribute('price', (float) $p->sale_price);
+            $p->setAttribute('available_stock', (float) ($p->available_stock ?? $p->stock));
+            if ($p->isStandard()) {
+                $p->stock = $p->available_stock;
+            }
+        });
 
         return response()->json($products)
             ->header('Cache-Control', 'private, max-age=5');
